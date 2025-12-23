@@ -16,7 +16,9 @@ struct MetricsContent: View {
                             heroSection
                             metricsSection
                             HStack(alignment: .top, spacing: 18) {
-                                HelpAndResourcesSection()
+                                Text("Help & Resources")
+                                    .font(.headline)
+                                    .padding()
                                 // Remove promotions for free fork
                             }
 
@@ -170,42 +172,5 @@ let totalTranscriptions = transcriptions.count
         let minutes = Int(duration) / 60
         let seconds = Int(duration) % 60
         return String(format: "%d:%02d", minutes, seconds)
-    }
-}
-
-// Simple HelpAndResourcesSection replacement
-struct HelpAndResourcesSection: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Help & Resources")
-                .font(.headline)
-            
-            VStack(spacing: 12) {
-                resourceLink(title: "Documentation", icon: "book.fill")
-                resourceLink(title: "Support", icon: "questionmark.circle.fill")
-                resourceLink(title: "GitHub", icon: "link.circle.fill")
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(NSColor.controlBackgroundColor))
-                .shadow(color: .black.opacity(0.05), radius: 8)
-        )
-    }
-    
-    private func resourceLink(title: String, icon: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(.blue)
-            
-            Text(title)
-                .font(.body)
-            
-            Spacer()
-        }
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+// Simplified views - remove problematic dependencies
 
 // Simplified ViewType for free fork
 enum ViewType: String, CaseIterable, Identifiable {
@@ -32,6 +33,24 @@ enum ViewType: String, CaseIterable, Identifiable {
     }
 }
 
+struct VisualEffectView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+        visualEffectView.state = .active
+        return visualEffectView
+    }
+
+    func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
+        visualEffectView.material = material
+        visualEffectView.blendingMode = blendingMode
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
@@ -55,13 +74,20 @@ struct ContentView: View {
                 Section {
                     // App Header
                     HStack(spacing: 6) {
-                        if let appIcon = NSImage(named: "AppIcon") {
-                            Image(nsImage: appIcon)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 28, height: 28)
-                                .cornerRadius(8)
-                        }
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.blue, Color.green],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Text("VI")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
 
                         Text("VoiceInk Free")
                             .font(.system(size: 14, weight: .semibold))
@@ -74,7 +100,7 @@ struct ContentView: View {
 
                 ForEach(visibleViewTypes) { viewType in
                     Section {
-                        NavigationLink(destination: detailView(for: viewType), value: viewType) {
+                        NavigationLink(value: viewType) {
                             HStack(spacing: 12) {
                                 Image(systemName: viewType.icon)
                                     .font(.system(size: 18, weight: .medium))
@@ -91,12 +117,12 @@ struct ContentView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         .listRowSeparator(.hidden)
                     }
+                }
 
-                    if selectedView != nil {
-                        Text("Version \(appVersion)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                if selectedView != nil {
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 250)
@@ -124,9 +150,15 @@ struct ContentView: View {
     private func detailView(for viewType: ViewType) -> some View {
         switch viewType {
         case .metrics:
-            Text("Dashboard")
-                .font(.title)
-                .padding()
+            VStack(spacing: 20) {
+                Text("Dashboard")
+                    .font(.title)
+                Text("All premium features are unlocked!")
+                    .foregroundColor(.green)
+                Text("Metrics and analytics would appear here.")
+                    .foregroundColor(.secondary)
+            }
+            .padding()
         case .transcribeAudio:
             Text("Transcribe Audio")
                 .font(.title)
