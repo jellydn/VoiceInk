@@ -1,0 +1,125 @@
+name: Beta Release from Main
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  beta-release:
+    runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Get version info
+        id: version
+        run: |
+          # Get current date
+          DATE=$(date +%Y%m%d)
+          
+          # Get commit short hash
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          
+          # Create beta version string using date-based format
+          BETA_VERSION="beta-${DATE}-${COMMIT_SHA}"
+          
+          # Get commit message for changelog
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
+          
+          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
+          
+          # Create changelog using heredoc
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "Auto beta release from main branch" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "Commit: $COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "Message: $COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "This is an automated beta release from the main branch." >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create beta branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create and checkout beta branch
+          git checkout -b beta-${{ steps.version.outputs.version }}
+          
+          git push origin beta-${{ steps.version.outputs.version }}
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest
+
+      - name: Build VoiceInk
+        run: |
+          # Setup whisper framework
+          mkdir -p ~/VoiceInk-Dependencies
+          cd ~/VoiceInk-Dependencies
+          
+          if [ ! -d "whisper.cpp" ]; then
+            git clone https://github.com/ggerganov/whisper.cpp.git
+          fi
+          
+          cd whisper.cpp
+          ./build-xcframework.sh
+          
+          # Build VoiceInk
+          cd $GITHUB_WORKSPACE
+          xcodebuild -project VoiceInk.xcodeproj \
+            -scheme VoiceInk \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Create GitHub Beta Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Beta Release ${{ steps.version.outputs.version }}"
+          body: ${{ steps.version.outputs.changelog }}
+          draft: false
+          prerelease: true
+          target_commitish: beta-${{ steps.version.outputs.version }}
+
+      - name: Create Pull Request to main
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Merge beta release ${{ steps.version.outputs.version }} to main"
+          title: "Beta Release: ${{ steps.version.outputs.version }}"
+          body: |
+            ## Beta Release Ready
+            
+            This PR prepares the beta release `${{ steps.version.outputs.version }}` for merging into main.
+            
+            **Release Details:**
+            - Version: `${{ steps.version.outputs.version }}`
+            - Source Branch: `beta-${{ steps.version.outputs.version }}`
+            - Target Branch: `main`
+            
+            **Changes:**
+            - Automated build completed
+            - Beta release created with pre-release flag
+            
+            **Actions:**
+            - [ ] Review changes
+            - [ ] Run tests
+            - [ ] Merge to main for stable release
+            
+            After merging to main, you can create a stable release using the manual release workflow.
+          branch: main
+          delete-branch: true
