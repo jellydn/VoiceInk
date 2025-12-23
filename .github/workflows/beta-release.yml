@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   beta-release:
@@ -85,6 +84,21 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build
 
+      - name: Create DMG for Testing
+        run: |
+          # Find built .app file
+          APP_PATH=$(find build/Build/Products/Release -name "VoiceInk.app" -type d | head -1)
+          
+          # Create temporary directory for DMG
+          mkdir -p dmg_temp
+          cp -R "$APP_PATH" dmg_temp/
+          
+          # Create simple DMG using hdiutil (built-in macOS tool)
+          hdiutil create -volname "VoiceInk" \
+            -srcfolder dmg_temp \
+            -ov -format UDZO \
+            "VoiceInk-${{ steps.version.outputs.version }}.dmg"
+
       - name: Create GitHub Beta Release
         uses: softprops/action-gh-release@v2
         with:
@@ -93,33 +107,6 @@ jobs:
           body: ${{ steps.version.outputs.changelog }}
           draft: false
           prerelease: true
-          target_commitish: beta-${{ steps.version.outputs.version }}
-
-      - name: Create Pull Request to main
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Merge beta release ${{ steps.version.outputs.version }} to main"
-          title: "Beta Release: ${{ steps.version.outputs.version }}"
-          body: |
-            ## Beta Release Ready
-            
-            This PR prepares the beta release `${{ steps.version.outputs.version }}` for merging into main.
-            
-            **Release Details:**
-            - Version: `${{ steps.version.outputs.version }}`
-            - Source Branch: `beta-${{ steps.version.outputs.version }}`
-            - Target Branch: `main`
-            
-            **Changes:**
-            - Automated build completed
-            - Beta release created with pre-release flag
-            
-            **Actions:**
-            - [ ] Review changes
-            - [ ] Run tests
-            - [ ] Merge to main for stable release
-            
-            After merging to main, you can create a stable release using the manual release workflow.
-          branch: main
-          delete-branch: true
+          target_commitish: ${{ github.sha }}
+          files: |
+            VoiceInk-${{ steps.version.outputs.version }}.dmg
