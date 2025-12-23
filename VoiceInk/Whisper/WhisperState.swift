@@ -382,12 +382,14 @@ class WhisperState: NSObject, ObservableObject {
         if await checkCancellationAndCleanup() { return }
 
         if var textToPaste = finalPastedText, transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
+            #if !DEBUG
             if case .trialExpired = licenseViewModel.licenseState {
                 textToPaste = """
                     Your trial has expired. Upgrade to VoiceInk Pro at tryvoiceink.com/buy
                     \n\(textToPaste)
                     """
             }
+            #endif
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 CursorPaster.pasteAtCursor(textToPaste + " ")
