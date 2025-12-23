@@ -5,7 +5,7 @@ import os
 struct MetricsContent: View {
     private let logger = Logger(subsystem: "com.prakashjoshipax.VoiceInk", category: "MetricsContent")
     let modelContext: ModelContext
-    let licenseState: LicenseViewModel.LicenseState
+    // Remove licenseState for free fork version
 
     @State private var totalCount: Int = 0
     @State private var totalWords: Int = 0
@@ -28,7 +28,7 @@ struct MetricsContent: View {
                             metricsSection
                             HStack(alignment: .top, spacing: 18) {
                                 HelpAndResourcesSection()
-                                DashboardPromotionsSection(licenseState: licenseState)
+                                // Remove promotions for free fork
                             }
 
                             Spacer(minLength: 20)
