@@ -1,8 +1,7 @@
 import SwiftUI
 import SwiftData
-import KeyboardShortcuts
 
-// ViewType enum with all cases
+// Simplified ViewType for free fork
 enum ViewType: String, CaseIterable, Identifiable {
     case metrics = "Dashboard"
     case transcribeAudio = "Transcribe Audio"
@@ -14,7 +13,6 @@ enum ViewType: String, CaseIterable, Identifiable {
     case audioInput = "Audio Input"
     case dictionary = "Dictionary"
     case settings = "Settings"
-    // case license = "VoiceInk Pro" // Remove for free fork
 
     var id: String { rawValue }
 
@@ -30,47 +28,21 @@ enum ViewType: String, CaseIterable, Identifiable {
         case .audioInput: return "mic.fill"
         case .dictionary: return "character.book.closed.fill"
         case .settings: return "gearshape.fill"
-        // case .license: return "checkmark.seal.fill" // Remove for free fork
         }
-    }
-}
-
-struct VisualEffectView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let visualEffectView = NSVisualEffectView()
-        visualEffectView.material = material
-        visualEffectView.blendingMode = blendingMode
-        visualEffectView.state = .active
-        return visualEffectView
-    }
-
-    func updateNSView(_ visualEffectView: NSVisualEffectView, context: Context) {
-        visualEffectView.material = material
-        visualEffectView.blendingMode = blendingMode
     }
 }
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject private var whisperState: WhisperState
-    @EnvironmentObject private var hotkeyManager: HotkeyManager
     @AppStorage("powerModeUIFlag") private var powerModeUIFlag = false
     @State private var selectedView: ViewType? = .metrics
     let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-    // @StateObject private var licenseViewModel = LicenseViewModel() // Remove for free fork
 
     private var visibleViewTypes: [ViewType] {
         ViewType.allCases.filter { viewType in
             if viewType == .powerMode {
                 return powerModeUIFlag
-            }
-            // Remove license view for free fork
-            if viewType == .license {
-                return false
             }
             return true
         }
@@ -78,6 +50,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
+            // Sidebar
             List(selection: $selectedView) {
                 Section {
                     // App Header
@@ -90,10 +63,9 @@ struct ContentView: View {
                                 .cornerRadius(8)
                         }
 
-                        Text("VoiceInk")
+                        Text("VoiceInk Free")
                             .font(.system(size: 14, weight: .semibold))
-
-                        // Remove PRO badge for free fork - always show as licensed
+                            .foregroundColor(.green)
 
                         Spacer()
                     }
@@ -102,7 +74,7 @@ struct ContentView: View {
 
                 ForEach(visibleViewTypes) { viewType in
                     Section {
-                        NavigationLink(value: viewType) {
+                        NavigationLink(destination: detailView(for: viewType), value: viewType) {
                             HStack(spacing: 12) {
                                 Image(systemName: viewType.icon)
                                     .font(.system(size: 18, weight: .medium))
@@ -119,46 +91,32 @@ struct ContentView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         .listRowSeparator(.hidden)
                     }
+
+                    if selectedView != nil {
+                        Text("Version \(appVersion)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
-            .listStyle(.sidebar)
-            .navigationTitle("VoiceInk")
-            .navigationSplitViewColumnWidth(210)
-        } detail: {
-            if let selectedView = selectedView {
-                detailView(for: selectedView)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle(selectedView.rawValue)
-            } else {
-                Text("Select a view")
-                    .foregroundColor(.secondary)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 250)
+
+            // Detail View
+            Group {
+                if let selectedView = selectedView {
+                    detailView(for: selectedView)
+                } else {
+                    Text("Welcome to VoiceInk Free")
+                        .font(.title)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                }
             }
+            .navigationSplitViewColumnWidth(min: 300, ideal: 500)
+            .background(Color(.controlBackgroundColor))
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 940, minHeight: 730)
-        .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { notification in
-            if let destination = notification.userInfo?["destination"] as? String {
-                switch destination {
-                case "Settings":
-                    selectedView = .settings
-                case "AI Models":
-                    selectedView = .models
-                case "VoiceInk Pro":
-                    selectedView = .license
-                case "History":
-                    selectedView = .history
-                case "Permissions":
-                    selectedView = .permissions
-                case "Enhancement":
-                    selectedView = .enhancement
-                case "Transcribe Audio":
-                    selectedView = .transcribeAudio
-                case "Power Mode":
-                    selectedView = .powerMode
-                default:
-                    break
-                }
-            }
+        .onAppear {
+            selectedView = .metrics
         }
     }
     
@@ -166,30 +124,45 @@ struct ContentView: View {
     private func detailView(for viewType: ViewType) -> some View {
         switch viewType {
         case .metrics:
-            MetricsView()
-        case .models:
-            ModelManagementView(whisperState: whisperState)
-        case .enhancement:
-            EnhancementSettingsView()
+            Text("Dashboard")
+                .font(.title)
+                .padding()
         case .transcribeAudio:
-            AudioTranscribeView()
+            Text("Transcribe Audio")
+                .font(.title)
+                .padding()
         case .history:
-            TranscriptionHistoryView()
-        case .audioInput:
-            AudioInputSettingsView()
-        case .dictionary:
-            DictionarySettingsView(whisperPrompt: whisperState.whisperPrompt)
+            Text("History")
+                .font(.title)
+                .padding()
+        case .models:
+            Text("AI Models")
+                .font(.title)
+                .padding()
+        case .enhancement:
+            Text("Enhancement")
+                .font(.title)
+                .padding()
         case .powerMode:
-            PowerModeView()
-        case .settings:
-            SettingsView()
-                .environmentObject(whisperState)
-        case .license:
-            LicenseManagementView()
+            Text("Power Mode")
+                .font(.title)
+                .padding()
         case .permissions:
-            PermissionsView()
+            Text("Permissions")
+                .font(.title)
+                .padding()
+        case .audioInput:
+            Text("Audio Input")
+                .font(.title)
+                .padding()
+        case .dictionary:
+            Text("Dictionary")
+                .font(.title)
+                .padding()
+        case .settings:
+            Text("Settings")
+                .font(.title)
+                .padding()
         }
     }
 }
-
- 

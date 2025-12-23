@@ -1,8 +1,8 @@
 import SwiftUI
+import SwiftData
 
 struct MetricsContent: View {
     let transcriptions: [Transcription]
-    // Remove licenseState for free fork version
     @State private var showKeyboardShortcuts = false
 
     var body: some View {
@@ -28,10 +28,7 @@ struct MetricsContent: View {
                             }
                         }
                         .frame(minHeight: geometry.size.height - 56)
-                        .padding(.vertical, 28)
-                        .padding(.horizontal, 32)
                     }
-                    .background(Color(.windowBackgroundColor))
                 }
             }
         }
@@ -39,269 +36,176 @@ struct MetricsContent: View {
     
     private var emptyStateView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "waveform")
-                .font(.system(size: 56, weight: .semibold))
-                .foregroundColor(.secondary)
             Text("No Transcriptions Yet")
-                .font(.title3.weight(.semibold))
-            Text("Start your first recording to unlock value insights.")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text("Start your first transcription to see your metrics here.")
+                .font(.body)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.windowBackgroundColor))
+        .padding(40)
+        .frame(maxWidth: .infinity)
     }
     
-    // MARK: - Sections
-    
     private var heroSection: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Spacer(minLength: 0)
-                
-                (Text("You have saved ")
-                    .fontWeight(.bold)
-                    .foregroundColor(.white.opacity(0.85))
-                 +
-                 Text(formattedTimeSaved)
-                    .fontWeight(.black)
-                    .font(.system(size: 36, design: .rounded))
-                    .foregroundStyle(.white)
-                 +
-                 Text(" with VoiceInk")
-                    .fontWeight(.bold)
-                    .foregroundColor(.white.opacity(0.85))
-                )
-                .font(.system(size: 30))
-                .multilineTextAlignment(.center)
-                
-                Spacer(minLength: 0)
-            }
-            .lineLimit(1)
-            .minimumScaleFactor(0.5)
+        VStack(spacing: 16) {
+            Text("Welcome to VoiceInk Free")
+                .font(.largeTitle)
+                .fontWeight(.bold)
             
-            Text(heroSubtitle)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white.opacity(0.85))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-            
+            Text("All premium features unlocked for unlimited use")
+                .font(.title3)
+                .foregroundColor(.secondary)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(heroGradient)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.08), radius: 30, x: 0, y: 16)
+        .padding(.top, 20)
     }
     
     private var metricsSection: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 16)], spacing: 16) {
-            MetricCard(
-                icon: "mic.fill",
-                title: "Sessions Recorded",
-                value: "\(transcriptions.count)",
-                detail: "VoiceInk sessions completed",
-                color: .purple
-            )
+        VStack(spacing: 20) {
+let totalTranscriptions = transcriptions.count
+        let totalDuration = transcriptions.reduce(0.0) { $0 + $1.duration }
+            let avgDuration = totalTranscriptions > 0 ? totalDuration / Double(totalTranscriptions) : 0
             
-            MetricCard(
-                icon: "text.alignleft",
-                title: "Words Dictated",
-                value: Formatters.formattedNumber(totalWordsTranscribed),
-                detail: "words generated",
-                color: Color(nsColor: .controlAccentColor)
-            )
-            
-            MetricCard(
-                icon: "speedometer",
-                title: "Words Per Minute",
-                value: averageWordsPerMinute > 0
-                    ? String(format: "%.1f", averageWordsPerMinute)
-                    : "–",
-                detail: "VoiceInk vs. typing by hand",
-                color: .yellow
-            )
-            
-            MetricCard(
-                icon: "keyboard.fill",
-                title: "Keystrokes Saved",
-                value: Formatters.formattedNumber(totalKeystrokesSaved),
-                detail: "fewer keystrokes",
-                color: .orange
-            )
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 16) {
+                metricCard(
+                    icon: "doc.text.fill",
+                    title: "Total Transcriptions",
+                    value: "\(totalTranscriptions)",
+                    color: .blue
+                )
+                
+                metricCard(
+                    icon: "clock.fill",
+                    title: "Total Duration",
+                    value: formatDuration(totalDuration),
+                    color: .green
+                )
+                
+                metricCard(
+                    icon: "waveform.circle.fill",
+                    title: "Average Duration",
+                    value: formatDuration(avgDuration),
+                    color: .orange
+                )
+            }
         }
+        .padding(.horizontal)
     }
     
-    private var footerActionsView: some View {
-        HStack(spacing: 12) {
-            KeyboardShortcutsButton(showKeyboardShortcuts: $showKeyboardShortcuts)
-            CopySystemInfoButton()
+    private func metricCard(icon: String, title: String, value: String, color: Color) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(color)
+                    .frame(width: 32, height: 32)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(value)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text(title)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
         }
-    }
-    
-    private var formattedTimeSaved: String {
-        let formatted = Formatters.formattedDuration(timeSaved, style: .full, fallback: "Time savings coming soon")
-        return formatted
-    }
-    
-    private var heroSubtitle: String {
-        guard !transcriptions.isEmpty else {
-            return "Your VoiceInk journey starts with your first recording."
-        }
-        
-        let wordsText = Formatters.formattedNumber(totalWordsTranscribed)
-        let sessionCount = transcriptions.count
-        let sessionText = sessionCount == 1 ? "session" : "sessions"
-        
-        return "Dictated \(wordsText) words across \(sessionCount) \(sessionText)."
-    }
-    
-    private var heroGradient: LinearGradient {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(nsColor: .controlAccentColor),
-                Color(nsColor: .controlAccentColor).opacity(0.85),
-                Color(nsColor: .controlAccentColor).opacity(0.7)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: .black.opacity(0.05), radius: 8)
         )
     }
     
-    // MARK: - Computed Metrics
-    
-    private var totalWordsTranscribed: Int {
-        transcriptions.reduce(0) { $0 + $1.text.split(separator: " ").count }
-    }
-    
-    private var totalRecordedTime: TimeInterval {
-        transcriptions.reduce(0) { $0 + $1.duration }
-    }
-    
-    private var estimatedTypingTime: TimeInterval {
-        let averageTypingSpeed: Double = 35 // words per minute
-        let totalWords = Double(totalWordsTranscribed)
-        let estimatedTypingTimeInMinutes = totalWords / averageTypingSpeed
-        return estimatedTypingTimeInMinutes * 60
-    }
-    
-    private var timeSaved: TimeInterval {
-        max(estimatedTypingTime - totalRecordedTime, 0)
-    }
-    
-    private var averageWordsPerMinute: Double {
-        guard totalRecordedTime > 0 else { return 0 }
-        return Double(totalWordsTranscribed) / (totalRecordedTime / 60.0)
-    }
-    
-    private var totalKeystrokesSaved: Int {
-        Int(Double(totalWordsTranscribed) * 5.0)
-    }
-    
-    private var firstTranscriptionDateText: String? {
-        guard let firstDate = transcriptions.map(\.timestamp).min() else { return nil }
-        return dateFormatter.string(from: firstDate)
-    }
-    
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }
-}
-
-private enum Formatters {
-    static let numberFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter
-    }()
-    
-    static let durationFormatter: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.maximumUnitCount = 2
-        return formatter
-    }()
-    
-    static func formattedNumber(_ value: Int) -> String {
-        return numberFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
-    }
-    
-    static func formattedDuration(_ interval: TimeInterval, style: DateComponentsFormatter.UnitsStyle, fallback: String = "–") -> String {
-        guard interval > 0 else { return fallback }
-        durationFormatter.unitsStyle = style
-        durationFormatter.allowedUnits = interval >= 3600 ? [.hour, .minute] : [.minute, .second]
-        return durationFormatter.string(from: interval) ?? fallback
-    }
-}
-
-private struct KeyboardShortcutsButton: View {
-    @Binding var showKeyboardShortcuts: Bool
-
-    var body: some View {
-        Button(action: {
-            showKeyboardShortcuts = true
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: "command")
-                    .font(.system(size: 13, weight: .medium))
-
+    private var footerActionsView: some View {
+        HStack(spacing: 16) {
+            Button(action: {
+                showKeyboardShortcuts = true
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "keyboard.fill")
+                    Text("Keyboard Shortcuts")
+                }
+            }
+            .buttonStyle(.bordered)
+        }
+        .sheet(isPresented: $showKeyboardShortcuts) {
+            // Simple keyboard shortcuts view
+            VStack(spacing: 20) {
                 Text("Keyboard Shortcuts")
+                    .font(.headline)
+                
+                VStack(spacing: 12) {
+                    shortcutRow(key: "⌘⇧V", description: "Toggle Mini Recorder")
+                    shortcutRow(key: "⌘⇧T", description: "Transcribe Audio")
+                    shortcutRow(key: "⌘,", description: "Start Recording")
+                }
             }
-            .font(.system(size: 13, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(.thinMaterial))
+            .padding()
         }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showKeyboardShortcuts, arrowEdge: .bottom) {
-            KeyboardShortcutsListView()
+    }
+    
+    private func shortcutRow(key: String, description: String) -> some View {
+        HStack {
+            Text(key)
+                .font(.system(.body, design: .monospaced))
+                .fontWeight(.medium)
+            Spacer()
+            Text(description)
+                .foregroundColor(.secondary)
         }
+        .padding(.vertical, 8)
+    }
+    
+    private func formatDuration(_ duration: Double) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
-private struct CopySystemInfoButton: View {
-    @State private var isCopied: Bool = false
-
+// Simple HelpAndResourcesSection replacement
+struct HelpAndResourcesSection: View {
     var body: some View {
-        Button(action: {
-            copySystemInfo()
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                    .rotationEffect(.degrees(isCopied ? 360 : 0))
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isCopied)
-
-                Text(isCopied ? "Copied!" : "Copy System Info")
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isCopied)
+        VStack(spacing: 16) {
+            Text("Help & Resources")
+                .font(.headline)
+            
+            VStack(spacing: 12) {
+                resourceLink(title: "Documentation", icon: "book.fill")
+                resourceLink(title: "Support", icon: "questionmark.circle.fill")
+                resourceLink(title: "GitHub", icon: "link.circle.fill")
             }
-            .font(.system(size: 13, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(.thinMaterial))
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isCopied ? 1.1 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isCopied)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(NSColor.controlBackgroundColor))
+                .shadow(color: .black.opacity(0.05), radius: 8)
+        )
     }
-
-    private func copySystemInfo() {
-        SystemInfoService.shared.copySystemInfoToClipboard()
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            isCopied = true
+    
+    private func resourceLink(title: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.blue)
+            
+            Text(title)
+                .font(.body)
+            
+            Spacer()
         }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isCopied = false
-            }
-        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
 }
