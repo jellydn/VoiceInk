@@ -3,13 +3,41 @@ DEPS_DIR := $(HOME)/VoiceInk-Dependencies
 WHISPER_CPP_DIR := $(DEPS_DIR)/whisper.cpp
 FRAMEWORK_PATH := $(WHISPER_CPP_DIR)/build-apple/whisper.xcframework
 
-.PHONY: all clean whisper setup build local check healthcheck help dev run
+.PHONY: all clean whisper setup build release check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
 
 # Default target
 all: check build
 
 # Development workflow
 dev: build run
+
+# Hot reload development - watches for changes and auto-rebuilds
+dev-hot:
+	@echo "Starting hot reload development mode..."
+	@command -v fswatch >/dev/null 2>&1 || { \
+		echo "fswatch is not installed. Install with: brew install fswatch"; \
+		echo "Falling back to regular dev mode..."; \
+		$(MAKE) dev; \
+		exit 0; \
+	}
+	@echo "Watching for changes in VoiceInk/*.swift..."
+	@$(MAKE) build
+	@$(MAKE) run &
+	@sleep 2
+	@fswatch -o -r VoiceInk/*.swift VoiceInk/**/*.swift | while read num; do \
+		echo ""; \
+		echo "🔄 Changes detected! Rebuilding..."; \
+		$(MAKE) kill-app; \
+		$(MAKE) build; \
+		$(MAKE) run & \
+		sleep 2; \
+		echo "✓ Ready and watching for changes... (Ctrl+C to stop)"; \
+	done
+
+# Kill running VoiceInk app
+kill-app:
+	@pkill -x "VoiceInk" 2>/dev/null || true
+	@sleep 0.5
 
 # Prerequisites
 check:
@@ -43,51 +71,32 @@ setup: whisper
 build: setup
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" build
 
-# Build for local use without Apple Developer certificate
-local: check setup
-	@echo "Building VoiceInk for local use (no Apple Developer certificate required)..."
-	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
-		-xcconfig LocalBuild.xcconfig \
-		CODE_SIGN_IDENTITY="-" \
-		CODE_SIGNING_REQUIRED=NO \
-		CODE_SIGNING_ALLOWED=YES \
-		DEVELOPMENT_TEAM="" \
-		CODE_SIGN_ENTITLEMENTS=$(CURDIR)/VoiceInk/VoiceInk.local.entitlements \
-		SWIFT_ACTIVE_COMPILATION_CONDITIONS='$$(inherited) LOCAL_BUILD' \
-		build
-	@APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -name "VoiceInk.app" -path "*/Debug/*" -type d | head -1) && \
+# Release build
+release: setup
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release CODE_SIGN_IDENTITY="" build
+
+# Run application (Debug configuration by default)
+run:
+	@echo "Looking for VoiceInk.app (Debug build)..."
+	@APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -path "*/Debug/VoiceInk.app" -type d | head -1) && \
 	if [ -n "$$APP_PATH" ]; then \
-		echo "Copying VoiceInk.app to ~/Downloads..."; \
-		rm -rf "$$HOME/Downloads/VoiceInk.app"; \
-		ditto "$$APP_PATH" "$$HOME/Downloads/VoiceInk.app"; \
-		xattr -cr "$$HOME/Downloads/VoiceInk.app"; \
-		echo ""; \
-		echo "Build complete! App saved to: ~/Downloads/VoiceInk.app"; \
-		echo "Run with: open ~/Downloads/VoiceInk.app"; \
-		echo ""; \
-		echo "Limitations of local builds:"; \
-		echo "  - No iCloud dictionary sync"; \
-		echo "  - No automatic updates (pull new code and rebuild to update)"; \
+		echo "Found Debug app at: $$APP_PATH"; \
+		open "$$APP_PATH"; \
 	else \
-		echo "Error: Could not find built VoiceInk.app in DerivedData."; \
+		echo "Debug VoiceInk.app not found. Please run 'make build' first."; \
 		exit 1; \
 	fi
 
-# Run application
-run:
-	@if [ -d "$$HOME/Downloads/VoiceInk.app" ]; then \
-		echo "Opening ~/Downloads/VoiceInk.app..."; \
-		open "$$HOME/Downloads/VoiceInk.app"; \
+# Run application (Release configuration)
+run-release:
+	@echo "Looking for VoiceInk.app (Release build)..."
+	@APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -path "*/Release/VoiceInk.app" -type d | head -1) && \
+	if [ -n "$$APP_PATH" ]; then \
+		echo "Found Release app at: $$APP_PATH"; \
+		open "$$APP_PATH"; \
 	else \
-		echo "Looking for VoiceInk.app in DerivedData..."; \
-		APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -name "VoiceInk.app" -type d | head -1) && \
-		if [ -n "$$APP_PATH" ]; then \
-			echo "Found app at: $$APP_PATH"; \
-			open "$$APP_PATH"; \
-		else \
-			echo "VoiceInk.app not found. Please run 'make build' or 'make local' first."; \
-			exit 1; \
-		fi; \
+		echo "Release VoiceInk.app not found. Please run 'make release' first."; \
+		exit 1; \
 	fi
 
 # Cleanup
@@ -101,11 +110,15 @@ help:
 	@echo "Available targets:"
 	@echo "  check/healthcheck  Check if required CLI tools are installed"
 	@echo "  whisper            Clone and build whisper.cpp XCFramework"
-	@echo "  setup              Copy whisper XCFramework to VoiceInk project"
-	@echo "  build              Build the VoiceInk Xcode project"
-	@echo "  local              Build for local use (no Apple Developer certificate needed)"
-	@echo "  run                Launch the built VoiceInk app"
-	@echo "  dev                Build and run the app (for development)"
+	@echo "  fix-xcode-path     Update Xcode project to reference the framework (auto-run in setup)"
+	@echo "  setup              Build framework and update Xcode project paths automatically"
+	@echo "  build              Build the VoiceInk Xcode project (Debug)"
+	@echo "  release            Build the VoiceInk Xcode project (Release)"
+	@echo "  run                Launch the Debug build"
+	@echo "  run-release        Launch the Release build"
+	@echo "  dev                Build and run the Debug app (for development)"
+	@echo "  dev-hot            Build with hot reload - auto-rebuilds on file changes (requires: brew install fswatch)"
+	@echo "  kill-app           Kill any running VoiceInk app instances"
 	@echo "  all                Run full build process (default)"
 	@echo "  clean              Remove build artifacts"
 	@echo "  help               Show this help message"
