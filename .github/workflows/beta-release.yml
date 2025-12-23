@@ -75,19 +75,24 @@ jobs:
           cd whisper.cpp
           ./build-xcframework.sh
           
-          # Build VoiceInk
+          # Build VoiceInk (Debug for beta releases)
           cd $GITHUB_WORKSPACE
           xcodebuild -project VoiceInk.xcodeproj \
             -scheme VoiceInk \
-            -configuration Release \
+            -configuration Debug \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Create DMG for Testing
         run: |
-          # Find built .app file
-          APP_PATH=$(find build/Build/Products/Release -name "VoiceInk.app" -type d | head -1)
+          # Find built .app file (Debug build for beta releases)
+          APP_PATH=$(find build/Build/Products/Debug -name "VoiceInk.app" -type d | head -1)
+
+          # Ad-hoc sign the app to reduce Gatekeeper issues
+          codesign --force --deep --sign - "$APP_PATH"
 
           # Create temporary directory for DMG
           mkdir -p dmg_temp
