@@ -88,16 +88,19 @@ jobs:
         run: |
           # Find built .app file
           APP_PATH=$(find build/Build/Products/Release -name "VoiceInk.app" -type d | head -1)
-          
+
           # Create temporary directory for DMG
           mkdir -p dmg_temp
           cp -R "$APP_PATH" dmg_temp/
-          
+
           # Create simple DMG using hdiutil (built-in macOS tool)
           hdiutil create -volname "VoiceInk" \
             -srcfolder dmg_temp \
             -ov -format UDZO \
             "VoiceInk-${{ steps.version.outputs.version }}.dmg"
+
+          # Clean up temporary directory
+          rm -rf dmg_temp
 
       - name: Create GitHub Beta Release
         uses: softprops/action-gh-release@v2
