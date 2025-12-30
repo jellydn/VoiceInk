@@ -30,25 +30,6 @@ These modifications remove all paywall and premium feature restrictions from Voi
 
 #### Dependency & Service Updates
 - **Commit: 6211417** - Simplified SelectedTextService to remove external dependency
-- **Commit: 60125c3** - Migrated dictionary data from UserDefaults to SwiftData
-
-#### Data Persistence
-- **Commit: 2a9bf12** - Removed unused isEnabled property from VocabularyWord
-- **Commit: 4e55192** - Fixed Soniox vocabulary integration to read from SwiftData
-- **Commit: 60125c3** - Migrated dictionary data from UserDefaults to SwiftData
-
-#### Error Handling & Stability
-- **Commit: a631043** - Added error handling for dictionary save operations
-- **Commit: 4e55192** - Fixed Soniox vocabulary integration to read from SwiftData
-- **Commit: 7beb63e** - Prevented crashes and duplicates in import operations
-- **Commit: bf3c035** - Added rollback for failed dictionary operations
-- **Commit: 93f8811** - Added missing rollback in dictionary import error handling
-
-#### UI Improvements
-- **Commit: 3a2721e** - Reduced hero section size and created reusable component
-
-### Upstream Integration
-- **Commit: 9d75109** - Merged pull request #454 from Beingpax/dictionary-refactor
 
 ---
 
