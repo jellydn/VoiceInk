@@ -1,8 +1,8 @@
-# Changelog - VoiceInk Fork
+# Changelog - VoiceInk (jellydn's modifications)
 
-All notable changes to this fork of VoiceInk are documented in this file.
+All notable changes by jellydn to the VoiceInk project are documented in this file.
 
-## [Modified Fork] - 2025
+## [2025] - Modifications
 
 ### Major Changes
 
@@ -11,7 +11,7 @@ All notable changes to this fork of VoiceInk are documented in this file.
 - **Commit: a5a6142** - Removed paywall in debug mode for WhisperState
 - **Commit: c389aaa** - Enabled debug mode to bypass license restrictions
 
-This fork removes all paywall and premium feature restrictions from the original VoiceInk application, making all features freely available to users. All modifications comply with the GNU General Public License v3.0 (GPLv3) terms.
+These modifications remove all paywall and premium feature restrictions from VoiceInk, making all features freely available to users. All changes comply with the GNU General Public License v3.0 (GPLv3) terms.
 
 ### Build & Release Improvements
 
@@ -54,7 +54,7 @@ This fork removes all paywall and premium feature restrictions from the original
 
 ## License
 
-This fork retains the **GNU General Public License v3.0 (GPLv3)** license from the original VoiceInk project. All modifications are made available under the same license terms, ensuring that the freedoms granted to users and developers are preserved.
+This project retains the **GNU General Public License v3.0 (GPLv3)** license. All modifications are made available under the same license terms, ensuring that the freedoms granted to users and developers are preserved.
 
 ### GPLv3 Compliance
 
@@ -70,7 +70,7 @@ As per GPLv3 requirements:
 ## Original Project
 
 VoiceInk - Transcribe your thoughts with Whisper
-- Original Repository: [jellydn/VoiceInk](https://github.com/jellydn/VoiceInk)
+- Original Repository: [Beingpax/VoiceInk](https://github.com/Beingpax/VoiceInk)
 - License: GNU General Public License v3.0
 
 ---
