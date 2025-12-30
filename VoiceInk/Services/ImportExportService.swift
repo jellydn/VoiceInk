@@ -3,6 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 import KeyboardShortcuts
 import LaunchAtLogin
+import SwiftData
 
 struct GeneralSettings: Codable {
     let toggleMiniRecorderShortcut: KeyboardShortcuts.Shortcut?
@@ -28,11 +29,16 @@ struct GeneralSettings: Codable {
     let clipboardRestoreDelay: Double?
 }
 
+// Simple codable struct for vocabulary words (for export/import only)
+struct VocabularyWordData: Codable {
+    let word: String
+}
+
 struct VoiceInkExportedSettings: Codable {
     let version: String
     let customPrompts: [CustomPrompt]
     let powerModeConfigs: [PowerModeConfig]
-    let dictionaryItems: [DictionaryItem]?
+    let vocabularyWords: [VocabularyWordData]?
     let wordReplacements: [String: String]?
     let generalSettings: GeneralSettings?
     let customEmojis: [String]?
@@ -78,13 +84,19 @@ class ImportExportService {
         // Export custom models
         let customModels = CustomModelManager.shared.customModels
 
-        var exportedDictionaryItems: [DictionaryItem]? = nil
-        if let data = UserDefaults.standard.data(forKey: dictionaryItemsKey),
-           let items = try? JSONDecoder().decode([DictionaryItem].self, from: data) {
-            exportedDictionaryItems = items
+        // Fetch vocabulary words from SwiftData
+        var exportedDictionaryItems: [VocabularyWordData]? = nil
+        let vocabularyDescriptor = FetchDescriptor<VocabularyWord>()
+        if let items = try? whisperState.modelContext.fetch(vocabularyDescriptor), !items.isEmpty {
+            exportedDictionaryItems = items.map { VocabularyWordData(word: $0.word) }
         }
 
-        let exportedWordReplacements = UserDefaults.standard.dictionary(forKey: wordReplacementsKey) as? [String: String]
+        // Fetch word replacements from SwiftData
+        var exportedWordReplacements: [String: String]? = nil
+        let replacementsDescriptor = FetchDescriptor<WordReplacement>()
+        if let replacements = try? whisperState.modelContext.fetch(replacementsDescriptor), !replacements.isEmpty {
+            exportedWordReplacements = Dictionary(uniqueKeysWithValues: replacements.map { ($0.originalText, $0.replacementText) })
+        }
 
         let generalSettingsToExport = GeneralSettings(
             toggleMiniRecorderShortcut: KeyboardShortcuts.getShortcut(for: .toggleMiniRecorder),
@@ -114,7 +126,7 @@ class ImportExportService {
             version: currentSettingsVersion,
             customPrompts: exportablePrompts,
             powerModeConfigs: powerConfigs,
-            dictionaryItems: exportedDictionaryItems,
+            vocabularyWords: exportedDictionaryItems,
             wordReplacements: exportedWordReplacements,
             generalSettings: generalSettingsToExport,
             customEmojis: emojiManager.customEmojis,
@@ -203,16 +215,57 @@ class ImportExportService {
                         }
                     }
 
-                    if let itemsToImport = importedSettings.dictionaryItems {
-                        if let encoded = try? JSONEncoder().encode(itemsToImport) {
-                            UserDefaults.standard.set(encoded, forKey: "CustomVocabularyItems")
+                    // Import vocabulary words to SwiftData
+                    if let itemsToImport = importedSettings.vocabularyWords {
+                        let vocabularyDescriptor = FetchDescriptor<VocabularyWord>()
+                        let existingWords = (try? whisperState.modelContext.fetch(vocabularyDescriptor)) ?? []
+                        let existingWordsSet = Set(existingWords.map { $0.word.lowercased() })
+
+                        for item in itemsToImport {
+                            if !existingWordsSet.contains(item.word.lowercased()) {
+                                let newWord = VocabularyWord(word: item.word)
+                                whisperState.modelContext.insert(newWord)
+                            }
                         }
+                        try? whisperState.modelContext.save()
+                        print("Successfully imported vocabulary words to SwiftData.")
                     } else {
-                        print("No custom vocabulary items (for spelling) found in the imported file. Existing items remain unchanged.")
+                        print("No vocabulary words found in the imported file. Existing items remain unchanged.")
                     }
 
+                    // Import word replacements to SwiftData
                     if let replacementsToImport = importedSettings.wordReplacements {
-                        UserDefaults.standard.set(replacementsToImport, forKey: self.wordReplacementsKey)
+                        let replacementsDescriptor = FetchDescriptor<WordReplacement>()
+                        let existingReplacements = (try? whisperState.modelContext.fetch(replacementsDescriptor)) ?? []
+
+                        // Build a set of existing replacement keys for duplicate checking
+                        var existingKeysSet = Set<String>()
+                        for existing in existingReplacements {
+                            let tokens = existing.originalText
+                                .split(separator: ",")
+                                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                                .filter { !$0.isEmpty }
+                            existingKeysSet.formUnion(tokens)
+                        }
+
+                        for (original, replacement) in replacementsToImport {
+                            let importTokens = original
+                                .split(separator: ",")
+                                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                                .filter { !$0.isEmpty }
+
+                            // Check if any token already exists
+                            let hasConflict = importTokens.contains { existingKeysSet.contains($0) }
+
+                            if !hasConflict {
+                                let newReplacement = WordReplacement(originalText: original, replacementText: replacement)
+                                whisperState.modelContext.insert(newReplacement)
+                                // Add these tokens to the set to prevent duplicates within the import
+                                existingKeysSet.formUnion(importTokens)
+                            }
+                        }
+                        try? whisperState.modelContext.save()
+                        print("Successfully imported word replacements to SwiftData.")
                     } else {
                         print("No word replacements found in the imported file. Existing replacements remain unchanged.")
                     }

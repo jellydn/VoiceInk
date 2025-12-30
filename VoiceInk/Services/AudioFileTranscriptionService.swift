@@ -55,7 +55,7 @@ class AudioTranscriptionService: ObservableObject {
                 text = WhisperTextFormatter.format(text)
             }
 
-            text = WordReplacementService.shared.applyReplacements(to: text)
+            text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
             logger.notice("✅ Word replacements applied")
 
             let audioAsset = AVURLAsset(url: url)

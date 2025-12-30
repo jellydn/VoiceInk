@@ -1,7 +1,13 @@
 import Foundation
+import SwiftData
 
 class SonioxTranscriptionService {
     private let apiBase = "https://api.soniox.com/v1"
+    private let modelContext: ModelContext
+
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
     
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
         let config = try getAPIConfig(for: model)
@@ -170,16 +176,16 @@ class SonioxTranscriptionService {
     }
     
     private func getCustomDictionaryTerms() -> [String] {
-        guard let data = UserDefaults.standard.data(forKey: "CustomVocabularyItems") else {
+        // Fetch vocabulary words from SwiftData
+        let descriptor = FetchDescriptor<VocabularyWord>(sortBy: [SortDescriptor(\.word)])
+        guard let vocabularyWords = try? modelContext.fetch(descriptor) else {
             return []
         }
-        // Decode without depending on UI layer types; extract "word" strings
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
-        let words = json.compactMap { $0["word"] as? String }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        let words = vocabularyWords
+            .map { $0.word.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+
         // De-duplicate while preserving order
         var seen = Set<String>()
         var unique: [String] = []

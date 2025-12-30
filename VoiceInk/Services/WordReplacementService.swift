@@ -1,20 +1,27 @@
 import Foundation
+import SwiftData
 
 class WordReplacementService {
     static let shared = WordReplacementService()
-    
+
     private init() {}
-    
-    func applyReplacements(to text: String) -> String {
-        guard let replacements = UserDefaults.standard.dictionary(forKey: "wordReplacements") as? [String: String],
-              !replacements.isEmpty else {
+
+    func applyReplacements(to text: String, using context: ModelContext) -> String {
+        let descriptor = FetchDescriptor<WordReplacement>(
+            predicate: #Predicate { $0.isEnabled }
+        )
+
+        guard let replacements = try? context.fetch(descriptor), !replacements.isEmpty else {
             return text // No replacements to apply
         }
-        
+
         var modifiedText = text
-        
+
         // Apply replacements (case-insensitive)
-        for (originalGroup, replacement) in replacements {
+        for replacement in replacements {
+            let originalGroup = replacement.originalText
+            let replacementText = replacement.replacementText
+
             // Split comma-separated originals at apply time only
             let variants = originalGroup
                 .split(separator: ",")
@@ -33,16 +40,16 @@ class WordReplacementService {
                             in: modifiedText,
                             options: [],
                             range: range,
-                            withTemplate: replacement
+                            withTemplate: replacementText
                         )
                     }
                 } else {
                     // Fallback substring replace for non-spaced scripts
-                    modifiedText = modifiedText.replacingOccurrences(of: original, with: replacement, options: .caseInsensitive)
+                    modifiedText = modifiedText.replacingOccurrences(of: original, with: replacementText, options: .caseInsensitive)
                 }
             }
         }
-        
+
         return modifiedText
     }
 

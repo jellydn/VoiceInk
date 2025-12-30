@@ -42,13 +42,17 @@ struct VoiceInkApp: App {
         }
 
         let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Initialization")
-        let schema = Schema([Transcription.self])
+        let schema = Schema([
+            Transcription.self,
+            VocabularyWord.self,
+            WordReplacement.self
+        ])
         var initializationFailed = false
         
         // Attempt 1: Try persistent storage
         if let persistentContainer = Self.createPersistentContainer(schema: schema, logger: logger) {
             container = persistentContainer
-            
+
             #if DEBUG
             // Print SwiftData storage location in debug builds only
             if let url = persistentContainer.mainContext.container.configurations.first?.url {
@@ -59,9 +63,9 @@ struct VoiceInkApp: App {
         // Attempt 2: Try in-memory storage
         else if let memoryContainer = Self.createInMemoryContainer(schema: schema, logger: logger) {
             container = memoryContainer
-            
+
             logger.warning("Using in-memory storage as fallback. Data will not persist between sessions.")
-            
+
             // Show alert to user about storage issue
             DispatchQueue.main.async {
                 let alert = NSAlert()
@@ -72,19 +76,16 @@ struct VoiceInkApp: App {
                 alert.runModal()
             }
         }
-        // Attempt 3: Try ultra-minimal default container
-        else if let minimalContainer = Self.createMinimalContainer(schema: schema, logger: logger) {
-            container = minimalContainer
-            logger.warning("Using minimal emergency container")
-        }
-        // All attempts failed: Create disabled container and mark for termination
+        // All attempts failed
         else {
-            logger.critical("All ModelContainer initialization attempts failed")
+            logger.critical("ModelContainer initialization failed")
             initializationFailed = true
-            
-            // Create a dummy container to satisfy Swift's initialization requirements
-            // App will show error and terminate in onAppear
-            container = Self.createDummyContainer(schema: schema)
+
+            // Create minimal in-memory container to satisfy initialization
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            container = (try? ModelContainer(for: schema, configurations: [config])) ?? {
+                preconditionFailure("Unable to create ModelContainer. SwiftData is unavailable.")
+            }()
         }
         
         containerInitializationFailed = initializationFailed
@@ -134,15 +135,37 @@ struct VoiceInkApp: App {
             // Create app-specific Application Support directory URL
             let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("com.prakashjoshipax.VoiceInk", isDirectory: true)
-            
+
             // Create the directory if it doesn't exist
             try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
-            
-            // Configure SwiftData to use the conventional location
-            let storeURL = appSupportURL.appendingPathComponent("default.store")
-            let modelConfiguration = ModelConfiguration(schema: schema, url: storeURL)
-            
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+
+            // Define storage locations
+            let defaultStoreURL = appSupportURL.appendingPathComponent("default.store")
+            let dictionaryStoreURL = appSupportURL.appendingPathComponent("dictionary.store")
+
+            // Transcript configuration
+            let transcriptSchema = Schema([Transcription.self])
+            let transcriptConfig = ModelConfiguration(
+                "default",
+                schema: transcriptSchema,
+                url: defaultStoreURL,
+                cloudKitDatabase: .none
+            )
+
+            // Dictionary configuration
+            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
+            let dictionaryConfig = ModelConfiguration(
+                "dictionary",
+                schema: dictionarySchema,
+                url: dictionaryStoreURL,
+                cloudKitDatabase: .none
+            )
+
+            // Initialize container
+            return try ModelContainer(
+                for: schema,
+                configurations: transcriptConfig, dictionaryConfig
+            )
         } catch {
             logger.error("Failed to create persistent ModelContainer: \(error.localizedDescription)")
             return nil
@@ -151,42 +174,26 @@ struct VoiceInkApp: App {
     
     private static func createInMemoryContainer(schema: Schema, logger: Logger) -> ModelContainer? {
         do {
-            let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            return try ModelContainer(for: schema, configurations: [configuration])
+            // Transcript configuration
+            let transcriptSchema = Schema([Transcription.self])
+            let transcriptConfig = ModelConfiguration(
+                "default",
+                schema: transcriptSchema,
+                isStoredInMemoryOnly: true
+            )
+
+            // Dictionary configuration
+            let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
+            let dictionaryConfig = ModelConfiguration(
+                "dictionary",
+                schema: dictionarySchema,
+                isStoredInMemoryOnly: true
+            )
+
+            return try ModelContainer(for: schema, configurations: transcriptConfig, dictionaryConfig)
         } catch {
             logger.error("Failed to create in-memory ModelContainer: \(error.localizedDescription)")
             return nil
-        }
-    }
-    
-    private static func createMinimalContainer(schema: Schema, logger: Logger) -> ModelContainer? {
-        do {
-            // Try default initializer without custom configuration
-            return try ModelContainer(for: schema)
-        } catch {
-            logger.error("Failed to create minimal ModelContainer: \(error.localizedDescription)")
-            return nil
-        }
-    }
-    
-    private static func createDummyContainer(schema: Schema) -> ModelContainer {
-        // Create an absolute minimal container for initialization
-        // This uses in-memory storage and will never actually be used
-        // as the app will show an error and terminate in onAppear
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        
-        // Note: In-memory containers should always succeed unless SwiftData itself is unavailable
-        // (which would indicate a serious system-level issue). We use preconditionFailure here
-        // rather than fatalError because:
-        // 1. This code is only reached after 3 prior initialization attempts have failed
-        // 2. An in-memory container failing indicates SwiftData is completely unavailable
-        // 3. Swift requires non-optional container property to be initialized
-        // 4. The app will immediately terminate in onAppear when containerInitializationFailed is checked
-        do {
-            return try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            // This indicates a system-level SwiftData failure - app cannot function
-            preconditionFailure("Unable to create even a dummy ModelContainer. SwiftData is unavailable: \(error)")
         }
     }
     
@@ -210,11 +217,14 @@ struct VoiceInkApp: App {
                             alert.alertStyle = .critical
                             alert.addButton(withTitle: "Quit")
                             alert.runModal()
-                            
+
                             NSApplication.shared.terminate(nil)
                             return
                         }
-                        
+
+                        // Migrate dictionary data from UserDefaults to SwiftData (one-time operation)
+                        DictionaryMigrationService.shared.migrateIfNeeded(context: container.mainContext)
+
                         updaterViewModel.silentlyCheckForUpdates()
                         if enableAnnouncements {
                             AnnouncementsService.shared.start()

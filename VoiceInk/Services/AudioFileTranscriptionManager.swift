@@ -96,7 +96,7 @@ class AudioTranscriptionManager: ObservableObject {
                     text = WhisperTextFormatter.format(text)
                 }
 
-                text = WordReplacementService.shared.applyReplacements(to: text)
+                text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
                 
                 // Handle enhancement if enabled
                 if let enhancementService = whisperState.enhancementService,

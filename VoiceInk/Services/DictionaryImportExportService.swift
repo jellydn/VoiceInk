@@ -1,35 +1,41 @@
 import Foundation
 import AppKit
 import UniformTypeIdentifiers
+import SwiftData
 
 struct DictionaryExportData: Codable {
     let version: String
-    let dictionaryItems: [String]
+    let vocabularyWords: [String]
     let wordReplacements: [String: String]
     let exportDate: Date
 }
 
 class DictionaryImportExportService {
     static let shared = DictionaryImportExportService()
-    private let dictionaryItemsKey = "CustomVocabularyItems"
-    private let wordReplacementsKey = "wordReplacements"
 
     private init() {}
 
-    func exportDictionary() {
+    func exportDictionary(from context: ModelContext) {
+        // Fetch vocabulary words from SwiftData
         var dictionaryWords: [String] = []
-        if let data = UserDefaults.standard.data(forKey: dictionaryItemsKey),
-           let items = try? JSONDecoder().decode([DictionaryItem].self, from: data) {
+        let vocabularyDescriptor = FetchDescriptor<VocabularyWord>(sortBy: [SortDescriptor(\VocabularyWord.word)])
+        if let items = try? context.fetch(vocabularyDescriptor) {
             dictionaryWords = items.map { $0.word }
         }
 
-        let wordReplacements = UserDefaults.standard.dictionary(forKey: wordReplacementsKey) as? [String: String] ?? [:]
+        // Fetch word replacements from SwiftData
+        var wordReplacements: [String: String] = [:]
+        let replacementsDescriptor = FetchDescriptor<WordReplacement>()
+        if let replacements = try? context.fetch(replacementsDescriptor) {
+            // Use uniquingKeysWith to handle potential duplicates gracefully (keep first occurrence)
+            wordReplacements = Dictionary(replacements.map { ($0.originalText, $0.replacementText) }, uniquingKeysWith: { first, _ in first })
+        }
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
 
         let exportData = DictionaryExportData(
             version: version,
-            dictionaryItems: dictionaryWords,
+            vocabularyWords: dictionaryWords,
             wordReplacements: wordReplacements,
             exportDate: Date()
         )
@@ -45,7 +51,7 @@ class DictionaryImportExportService {
             savePanel.allowedContentTypes = [UTType.json]
             savePanel.nameFieldStringValue = "VoiceInk_Dictionary.json"
             savePanel.title = "Export Dictionary Data"
-            savePanel.message = "Choose a location to save your dictionary items and word replacements."
+            savePanel.message = "Choose a location to save your vocabulary and word replacements."
 
             DispatchQueue.main.async {
                 if savePanel.runModal() == .OK {
@@ -66,7 +72,7 @@ class DictionaryImportExportService {
         }
     }
 
-    func importDictionary() {
+    func importDictionary(into context: ModelContext) {
         let openPanel = NSOpenPanel()
         openPanel.allowedContentTypes = [UTType.json]
         openPanel.canChooseFiles = true
@@ -88,38 +94,36 @@ class DictionaryImportExportService {
                     decoder.dateDecodingStrategy = .iso8601
                     let importedData = try decoder.decode(DictionaryExportData.self, from: jsonData)
 
-                    var existingItems: [DictionaryItem] = []
-                    if let data = UserDefaults.standard.data(forKey: self.dictionaryItemsKey),
-                       let items = try? JSONDecoder().decode([DictionaryItem].self, from: data) {
-                        existingItems = items
-                    }
-
+                    // Fetch existing vocabulary words from SwiftData
+                    let vocabularyDescriptor = FetchDescriptor<VocabularyWord>()
+                    let existingItems = (try? context.fetch(vocabularyDescriptor)) ?? []
                     let existingWordsLower = Set(existingItems.map { $0.word.lowercased() })
                     let originalExistingCount = existingItems.count
                     var newWordsAdded = 0
 
-                    for importedWord in importedData.dictionaryItems {
+                    // Import vocabulary words
+                    for importedWord in importedData.vocabularyWords {
                         if !existingWordsLower.contains(importedWord.lowercased()) {
-                            existingItems.append(DictionaryItem(word: importedWord))
+                            let newWord = VocabularyWord(word: importedWord)
+                            context.insert(newWord)
                             newWordsAdded += 1
                         }
                     }
 
-                    if let encoded = try? JSONEncoder().encode(existingItems) {
-                        UserDefaults.standard.set(encoded, forKey: self.dictionaryItemsKey)
-                    }
-
-                    var existingReplacements = UserDefaults.standard.dictionary(forKey: self.wordReplacementsKey) as? [String: String] ?? [:]
+                    // Fetch existing word replacements from SwiftData
+                    let replacementsDescriptor = FetchDescriptor<WordReplacement>()
+                    let existingReplacements = (try? context.fetch(replacementsDescriptor)) ?? []
                     var addedCount = 0
                     var updatedCount = 0
 
+                    // Import word replacements
                     for (importedKey, importedReplacement) in importedData.wordReplacements {
                         let normalizedImportedKey = self.normalizeReplacementKey(importedKey)
                         let importedWords = self.extractWords(from: normalizedImportedKey)
 
-                        var modifiedExisting: [String: String] = [:]
-                        for (existingKey, existingReplacement) in existingReplacements {
-                            var existingWords = self.extractWords(from: existingKey)
+                        // Check for conflicts and update existing replacements
+                        for existingReplacement in existingReplacements {
+                            var existingWords = self.extractWords(from: existingReplacement.originalText)
                             var modified = false
 
                             for importedWord in importedWords {
@@ -129,30 +133,34 @@ class DictionaryImportExportService {
                                 }
                             }
 
-                            if !existingWords.isEmpty {
-                                let newKey = existingWords.joined(separator: ", ")
-                                modifiedExisting[newKey] = existingReplacement
-                            }
-
                             if modified {
+                                if existingWords.isEmpty {
+                                    context.delete(existingReplacement)
+                                } else {
+                                    existingReplacement.originalText = existingWords.joined(separator: ", ")
+                                }
                                 updatedCount += 1
                             }
                         }
 
-                        existingReplacements = modifiedExisting
-                        existingReplacements[normalizedImportedKey] = importedReplacement
+                        // Add new replacement
+                        let newReplacement = WordReplacement(originalText: normalizedImportedKey, replacementText: importedReplacement)
+                        context.insert(newReplacement)
                         addedCount += 1
                     }
 
-                    UserDefaults.standard.set(existingReplacements, forKey: self.wordReplacementsKey)
+                    // Save all changes
+                    try context.save()
 
                     var message = "Dictionary data imported successfully from \(url.lastPathComponent).\n\n"
-                    message += "Dictionary Items: \(newWordsAdded) added, \(originalExistingCount) kept\n"
+                    message += "Vocabulary Words: \(newWordsAdded) added, \(originalExistingCount) kept\n"
                     message += "Word Replacements: \(addedCount) added, \(updatedCount) updated"
 
                     self.showAlert(title: "Import Successful", message: message)
 
                 } catch {
+                    // Rollback any unsaved changes to maintain consistency
+                    context.rollback()
                     self.showAlert(title: "Import Error", message: "Error importing dictionary data: \(error.localizedDescription). The file might be corrupted or not in the correct format.")
                 }
             } else {
