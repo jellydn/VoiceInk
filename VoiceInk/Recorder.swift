@@ -15,6 +15,7 @@ class Recorder: NSObject, ObservableObject {
     @Published var audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
     private var audioLevelCheckTask: Task<Void, Never>?
     private var audioMeterUpdateTask: Task<Void, Never>?
+    private var audioRestorationTask: Task<Void, Never>?
     private var hasDetectedAudioInCurrentSession = false
     
     enum RecorderError: Error {
@@ -95,6 +96,9 @@ class Recorder: NSObject, ObservableObject {
 
             logger.info("✅ AudioEngineRecorder started successfully")
 
+            audioRestorationTask?.cancel()
+            audioRestorationTask = nil
+
             Task { [weak self] in
                 guard let self = self else { return }
                 await self.playbackController.pauseMedia()
@@ -146,9 +150,8 @@ class Recorder: NSObject, ObservableObject {
         recorder = nil
         audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
 
-        Task {
+        audioRestorationTask = Task {
             await mediaController.unmuteSystemAudio()
-            try? await Task.sleep(nanoseconds: 100_000_000)
             await playbackController.resumeMedia()
         }
         deviceManager.isRecordingActive = false
@@ -210,6 +213,7 @@ class Recorder: NSObject, ObservableObject {
     deinit {
         audioLevelCheckTask?.cancel()
         audioMeterUpdateTask?.cancel()
+        audioRestorationTask?.cancel()
         if let observer = deviceObserver {
             NotificationCenter.default.removeObserver(observer)
         }

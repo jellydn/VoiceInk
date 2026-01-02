@@ -77,18 +77,8 @@ final class ModelPrewarmService: ObservableObject {
         let startTime = Date()
 
         do {
-            let transcribedText = try await serviceRegistry.transcribe(audioURL: audioURL, model: currentModel)
+            let _ = try await serviceRegistry.transcribe(audioURL: audioURL, model: currentModel)
             let duration = Date().timeIntervalSince(startTime)
-
-            let transcription = Transcription(
-                text: "[PREWARM] \(transcribedText)",
-                duration: 1.0,
-                audioFileURL: audioURL.absoluteString,
-                transcriptionModelName: currentModel.displayName,
-                transcriptionDuration: duration
-            )
-            modelContext.insert(transcription)
-            try? modelContext.save()
 
             logger.notice("🌅 Prewarm completed in \(String(format: "%.2f", duration))s")
 

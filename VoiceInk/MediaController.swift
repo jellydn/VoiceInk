@@ -10,21 +10,30 @@ class MediaController: ObservableObject {
     private var didMuteAudio = false
     private var wasAudioMutedBeforeRecording = false
     private var currentMuteTask: Task<Bool, Never>?
-    
+    private var unmuteTask: Task<Void, Never>?
+
     @Published var isSystemMuteEnabled: Bool = UserDefaults.standard.bool(forKey: "isSystemMuteEnabled") {
         didSet {
             UserDefaults.standard.set(isSystemMuteEnabled, forKey: "isSystemMuteEnabled")
         }
     }
-    
+
+    @Published var audioResumptionDelay: Double = UserDefaults.standard.double(forKey: "audioResumptionDelay") {
+        didSet {
+            UserDefaults.standard.set(audioResumptionDelay, forKey: "audioResumptionDelay")
+        }
+    }
+
     private init() {
-        // Set default if not already set
         if !UserDefaults.standard.contains(key: "isSystemMuteEnabled") {
             UserDefaults.standard.set(true, forKey: "isSystemMuteEnabled")
         }
+
+        if !UserDefaults.standard.contains(key: "audioResumptionDelay") {
+            UserDefaults.standard.set(0.0, forKey: "audioResumptionDelay")
+        }
     }
     
-    /// Checks if the system audio is currently muted using AppleScript
     private func isSystemAudioMuted() -> Bool {
         let pipe = Pipe()
         let task = Process()
@@ -39,58 +48,63 @@ class MediaController: ObservableObject {
             if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
                 return output == "true"
             }
-        } catch {
-            // Silently fail
-        }
+        } catch { }
         
         return false
     }
     
-    /// Mutes system audio during recording
     func muteSystemAudio() async -> Bool {
         guard isSystemMuteEnabled else { return false }
-        
-        // Cancel any existing mute task and create a new one
+
+        unmuteTask?.cancel()
+        unmuteTask = nil
         currentMuteTask?.cancel()
-        
+
         let task = Task<Bool, Never> {
-            // First check if audio is already muted
             wasAudioMutedBeforeRecording = isSystemAudioMuted()
-            
-            // If already muted, no need to mute it again
+
             if wasAudioMutedBeforeRecording {
                 return true
             }
-            
-            // Otherwise mute the audio
+
             let success = executeAppleScript(command: "set volume with output muted")
             didMuteAudio = success
             return success
         }
-        
+
         currentMuteTask = task
         return await task.value
     }
     
-    /// Restores system audio after recording
     func unmuteSystemAudio() async {
         guard isSystemMuteEnabled else { return }
-        
-        // Wait for any pending mute operation to complete first
+
         if let muteTask = currentMuteTask {
             _ = await muteTask.value
         }
-        
-        // Only unmute if we actually muted it (and it wasn't already muted)
-        if didMuteAudio && !wasAudioMutedBeforeRecording {
-            _ = executeAppleScript(command: "set volume without output muted")
+
+        let delay = audioResumptionDelay
+        let shouldUnmute = didMuteAudio && !wasAudioMutedBeforeRecording
+
+        let task = Task {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            if Task.isCancelled {
+                return
+            }
+
+            if shouldUnmute {
+                _ = executeAppleScript(command: "set volume without output muted")
+            }
+
+            didMuteAudio = false
+            currentMuteTask = nil
         }
-        
-        didMuteAudio = false
-        currentMuteTask = nil
+
+        unmuteTask = task
+        await task.value
     }
     
-    /// Executes an AppleScript command
     private func executeAppleScript(command: String) -> Bool {
         let task = Process()
         task.launchPath = "/usr/bin/osascript"
@@ -114,9 +128,14 @@ extension UserDefaults {
     func contains(key: String) -> Bool {
         return object(forKey: key) != nil
     }
-    
+
     var isSystemMuteEnabled: Bool {
         get { bool(forKey: "isSystemMuteEnabled") }
         set { set(newValue, forKey: "isSystemMuteEnabled") }
+    }
+
+    var audioResumptionDelay: Double {
+        get { double(forKey: "audioResumptionDelay") }
+        set { set(newValue, forKey: "audioResumptionDelay") }
     }
 }

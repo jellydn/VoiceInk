@@ -199,7 +199,7 @@ struct MenuBarView: View {
             .keyboardShortcut("c", modifiers: [.command, .shift])
             
             Button("History") {
-                menuBarManager.openMainWindowAndNavigate(to: "History")
+                menuBarManager.openHistoryWindow()
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
             

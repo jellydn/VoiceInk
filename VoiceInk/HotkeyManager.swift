@@ -9,6 +9,7 @@ extension KeyboardShortcuts.Name {
     static let pasteLastTranscription = Self("pasteLastTranscription")
     static let pasteLastEnhancement = Self("pasteLastEnhancement")
     static let retryLastTranscription = Self("retryLastTranscription")
+    static let openHistoryWindow = Self("openHistoryWindow")
 }
 
 @MainActor
@@ -147,7 +148,17 @@ class HotkeyManager: ObservableObject {
                 LastTranscriptionService.retryLastTranscription(from: self.whisperState.modelContext, whisperState: self.whisperState)
             }
         }
-        
+
+        KeyboardShortcuts.onKeyUp(for: .openHistoryWindow) { [weak self] in
+            guard let self = self else { return }
+            Task { @MainActor in
+                HistoryWindowController.shared.showHistoryWindow(
+                    modelContainer: self.whisperState.modelContext.container,
+                    whisperState: self.whisperState
+                )
+            }
+        }
+
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 100_000_000)
             self.setupHotkeyMonitoring()

@@ -18,11 +18,11 @@ struct SettingsView: View {
     @AppStorage("autoUpdateCheck") private var autoUpdateCheck = true
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @AppStorage("restoreClipboardAfterPaste") private var restoreClipboardAfterPaste = false
-    @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 1.5
+    @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 2.0
     @State private var showResetOnboardingAlert = false
     @State private var currentShortcut = KeyboardShortcuts.getShortcut(for: .toggleMiniRecorder)
     @State private var isCustomCancelEnabled = false
-    @State private var isCustomSoundsExpanded = false
+    @State private var expandedSections: Set<ExpandableSection> = []
 
     
     var body: some View {
@@ -134,81 +134,62 @@ struct SettingsView: View {
 
                         Divider()
 
-                        
-                        
-                        // Custom Cancel Shortcut
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Toggle(isOn: $isCustomCancelEnabled.animation()) {
-                                    Text("Custom Cancel Shortcut")
-                                }
-                                .toggleStyle(.switch)
-                                .onChange(of: isCustomCancelEnabled) { _, newValue in
-                                    if !newValue {
-                                        KeyboardShortcuts.setShortcut(nil, for: .cancelRecorder)
-                                    }
-                                }
-                                
-                                InfoTip(
-                                    title: "Dismiss Recording",
-                                    message: "Shortcut for cancelling the current recording session. Default: double-tap Escape."
-                                )
+
+
+                        ExpandableToggleSection(
+                            section: .customCancel,
+                            title: "Custom Cancel Shortcut",
+                            helpText: "Shortcut for cancelling the current recording session. Default: double-tap Escape.",
+                            isEnabled: $isCustomCancelEnabled,
+                            expandedSections: $expandedSections
+                        ) {
+                            HStack(spacing: 12) {
+                                Text("Cancel Shortcut")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
+
+                                KeyboardShortcuts.Recorder(for: .cancelRecorder)
+                                    .controlSize(.small)
+
+                                Spacer()
                             }
-                            
-                            if isCustomCancelEnabled {
-                                HStack(spacing: 12) {
-                                    Text("Cancel Shortcut")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                    
-                                    KeyboardShortcuts.Recorder(for: .cancelRecorder)
-                                        .controlSize(.small)
-                                    
-                                    Spacer()
-                                }
-                                .padding(.leading, 16)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                        .onChange(of: isCustomCancelEnabled) { _, newValue in
+                            if !newValue {
+                                KeyboardShortcuts.setShortcut(nil, for: .cancelRecorder)
                             }
                         }
 
                         Divider()
 
-                        // Middle-Click Toggle
-                        VStack(alignment: .leading, spacing: 12) {
+                        ExpandableToggleSection(
+                            section: .middleClick,
+                            title: "Enable Middle-Click Toggle",
+                            helpText: "Use middle mouse button to toggle VoiceInk recording.",
+                            isEnabled: $hotkeyManager.isMiddleClickToggleEnabled,
+                            expandedSections: $expandedSections
+                        ) {
                             HStack(spacing: 8) {
-                                Toggle("Enable Middle-Click Toggle", isOn: $hotkeyManager.isMiddleClickToggleEnabled)
-                                    .toggleStyle(.switch)
+                                Text("Activation Delay")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
 
-                                InfoTip(
-                                    title: "Middle-Click Toggle",
-                                    message: "Use middle mouse button to toggle VoiceInk recording."
-                                )
-                            }
+                                TextField("", value: $hotkeyManager.middleClickActivationDelay, formatter: {
+                                    let formatter = NumberFormatter()
+                                    formatter.numberStyle = .none
+                                    formatter.minimum = 0
+                                    return formatter
+                                }())
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .padding(EdgeInsets(top: 3, leading: 6, bottom: 3, trailing: 6))
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(5)
+                                .frame(width: 70)
 
-                            if hotkeyManager.isMiddleClickToggleEnabled {
-                                HStack(spacing: 8) {
-                                    Text("Activation Delay")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.secondary)
+                                Text("ms")
+                                    .foregroundColor(.secondary)
 
-                                    TextField("", value: $hotkeyManager.middleClickActivationDelay, formatter: {
-                                        let formatter = NumberFormatter()
-                                        formatter.numberStyle = .none
-                                        formatter.minimum = 0
-                                        return formatter
-                                    }())
-                                    .textFieldStyle(PlainTextFieldStyle())
-                                    .padding(EdgeInsets(top: 3, leading: 6, bottom: 3, trailing: 6))
-                                    .background(Color(NSColor.textBackgroundColor))
-                                    .cornerRadius(5)
-                                    .frame(width: 70)
-
-                                    Text("ms")
-                                        .foregroundColor(.secondary)
-
-                                    Spacer()
-                                }
-                                .padding(.leading, 16)
+                                Spacer()
                             }
                         }
                     }
@@ -220,78 +201,75 @@ struct SettingsView: View {
                     subtitle: "Customize app & system feedback"
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Toggle(isOn: $soundManager.isEnabled) {
-                                Text("Sound feedback")
-                            }
-                            .toggleStyle(.switch)
-
-                            if soundManager.isEnabled {
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                    .rotationEffect(.degrees(isCustomSoundsExpanded ? 90 : 0))
-                                    .animation(.easeInOut(duration: 0.2), value: isCustomSoundsExpanded)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if soundManager.isEnabled {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isCustomSoundsExpanded.toggle()
-                                }
-                            }
-                        }
-
-                        if soundManager.isEnabled && isCustomSoundsExpanded {
+                        ExpandableToggleSection(
+                            section: .soundFeedback,
+                            title: "Sound feedback",
+                            helpText: "Play sounds when recording starts and stops",
+                            isEnabled: $soundManager.isEnabled,
+                            expandedSections: $expandedSections
+                        ) {
                             CustomSoundSettingsView()
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                                .padding(.top, 4)
                         }
 
                         Divider()
 
-                        Toggle(isOn: $mediaController.isSystemMuteEnabled) {
-                            Text("Mute system audio during recording")
-                        }
-                        .toggleStyle(.switch)
-                        .help("Automatically mute system audio when recording starts and restore when recording stops")
-
-                        VStack(alignment: .leading, spacing: 12) {
+                        ExpandableToggleSection(
+                            section: .systemMute,
+                            title: "Mute system audio during recording",
+                            helpText: "Automatically mute system audio when recording starts and restore when recording stops",
+                            isEnabled: $mediaController.isSystemMuteEnabled,
+                            expandedSections: $expandedSections
+                        ) {
                             HStack(spacing: 8) {
-                                Toggle("Restore clipboard after paste", isOn: $restoreClipboardAfterPaste)
-                                    .toggleStyle(.switch)
+                                Text("Resume Delay")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
+
+                                Picker("", selection: $mediaController.audioResumptionDelay) {
+                                    Text("0s").tag(0.0)
+                                    Text("1s").tag(1.0)
+                                    Text("2s").tag(2.0)
+                                    Text("3s").tag(3.0)
+                                    Text("4s").tag(4.0)
+                                    Text("5s").tag(5.0)
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 80)
 
                                 InfoTip(
-                                    title: "Restore Clipboard",
-                                    message: "When enabled, VoiceInk will restore your original clipboard content after pasting the transcription."
+                                    title: "Audio Resume Delay",
+                                    message: "Delay before unmuting system audio after recording stops. Useful for Bluetooth headphones that need time to switch from microphone mode back to high-quality audio mode. Recommended: 2s for AirPods/Bluetooth headphones, 0s for wired headphones."
                                 )
+
+                                Spacer()
                             }
+                        }
 
-                            if restoreClipboardAfterPaste {
-                                HStack(spacing: 8) {
-                                    Text("Restore Delay")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.secondary)
+                        Divider()
 
-                                    Picker("", selection: $clipboardRestoreDelay) {
-                                        Text("0.5s").tag(0.5)
-                                        Text("1.0s").tag(1.0)
-                                        Text("1.5s").tag(1.5)
-                                        Text("2.0s").tag(2.0)
-                                        Text("2.5s").tag(2.5)
-                                        Text("3.0s").tag(3.0)
-                                        Text("4.0s").tag(4.0)
-                                        Text("5.0s").tag(5.0)
-                                    }
-                                    .pickerStyle(.menu)
-                                    .frame(width: 90)
+                        ExpandableToggleSection(
+                            section: .clipboardRestore,
+                            title: "Restore clipboard after paste",
+                            helpText: "When enabled, VoiceInk will restore your original clipboard content after pasting the transcription.",
+                            isEnabled: $restoreClipboardAfterPaste,
+                            expandedSections: $expandedSections
+                        ) {
+                            HStack(spacing: 8) {
+                                Text("Restore Delay")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
 
-                                    Spacer()
+                                Picker("", selection: $clipboardRestoreDelay) {
+                                    Text("1s").tag(1.0)
+                                    Text("2s").tag(2.0)
+                                    Text("3s").tag(3.0)
+                                    Text("4s").tag(4.0)
+                                    Text("5s").tag(5.0)
                                 }
-                                .padding(.leading, 16)
+                                .pickerStyle(.menu)
+                                .frame(width: 80)
+
+                                Spacer()
                             }
                         }
 

@@ -23,6 +23,7 @@ struct GeneralSettings: Codable {
     let isSoundFeedbackEnabled: Bool?
     let isSystemMuteEnabled: Bool?
     let isPauseMediaEnabled: Bool?
+    let audioResumptionDelay: Double?
     let isTextFormattingEnabled: Bool?
     let isExperimentalFeaturesEnabled: Bool?
     let restoreClipboardAfterPaste: Bool?
@@ -116,6 +117,7 @@ class ImportExportService {
             isSoundFeedbackEnabled: soundManager.isEnabled,
             isSystemMuteEnabled: mediaController.isSystemMuteEnabled,
             isPauseMediaEnabled: playbackController.isPauseMediaEnabled,
+            audioResumptionDelay: mediaController.audioResumptionDelay,
             isTextFormattingEnabled: UserDefaults.standard.object(forKey: keyIsTextFormattingEnabled) as? Bool ?? true,
             isExperimentalFeaturesEnabled: UserDefaults.standard.bool(forKey: "isExperimentalFeaturesEnabled"),
             restoreClipboardAfterPaste: UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"),
@@ -322,6 +324,9 @@ class ImportExportService {
                         }
                         if let pauseMedia = general.isPauseMediaEnabled {
                             playbackController.isPauseMediaEnabled = pauseMedia
+                        }
+                        if let audioDelay = general.audioResumptionDelay {
+                            mediaController.audioResumptionDelay = audioDelay
                         }
                         if let experimentalEnabled = general.isExperimentalFeaturesEnabled {
                             UserDefaults.standard.set(experimentalEnabled, forKey: "isExperimentalFeaturesEnabled")
