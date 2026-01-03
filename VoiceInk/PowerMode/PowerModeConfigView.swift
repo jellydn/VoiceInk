@@ -1,4 +1,5 @@
 import SwiftUI
+import KeyboardShortcuts
 
 struct ConfigurationView: View {
     let mode: ConfigurationMode
@@ -42,6 +43,9 @@ struct ConfigurationView: View {
     @State private var isEditingPrompt = false
     @State private var selectedPromptForEdit: CustomPrompt?
 
+    // PowerMode hotkey configuration
+    @State private var powerModeConfigId: UUID = UUID()
+
     private func languageSelectionDisabled() -> Bool {
         guard let selectedModelName = effectiveModelName,
               let model = whisperState.allAvailableModels.first(where: { $0.name == selectedModelName })
@@ -83,10 +87,12 @@ struct ConfigurationView: View {
     init(mode: ConfigurationMode, powerModeManager: PowerModeManager) {
         self.mode = mode
         self.powerModeManager = powerModeManager
-        
+
         // Always fetch the most current configuration data
         switch mode {
         case .add:
+            let newId = UUID()
+            _powerModeConfigId = State(initialValue: newId)
             _isAIEnhancementEnabled = State(initialValue: true)
             _selectedPromptId = State(initialValue: nil)
             _selectedTranscriptionModelName = State(initialValue: nil)
@@ -102,6 +108,7 @@ struct ConfigurationView: View {
         case .edit(let config):
             // Get the latest version of this config from PowerModeManager
             let latestConfig = powerModeManager.getConfiguration(with: config.id) ?? config
+            _powerModeConfigId = State(initialValue: latestConfig.id)
             _isAIEnhancementEnabled = State(initialValue: latestConfig.isAIEnhancementEnabled)
             _selectedPromptId = State(initialValue: latestConfig.selectedPrompt.flatMap { UUID(uuidString: $0) })
             _selectedTranscriptionModelName = State(initialValue: latestConfig.selectedTranscriptionModelName)
@@ -613,12 +620,30 @@ struct ConfigurationView: View {
 
                         HStack {
                             Toggle("Auto Send", isOn: $isAutoSendEnabled)
-                            
+
                             InfoTip(
                                 title: "Auto Send",
                                 message: "Automatically presses the Return/Enter key after pasting text. This is useful for chat applications or forms where its not necessary to to make changes to the transcribed text"
                             )
-                            
+
+                            Spacer()
+                        }
+
+                        Divider()
+
+                        HStack {
+                            Text("Keyboard Shortcut")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            KeyboardShortcuts.Recorder(for: .powerMode(id: powerModeConfigId))
+                            .controlSize(.small)
+
+                            InfoTip(
+                                title: "Power Mode Hotkey",
+                                message: "Assign a unique keyboard shortcut to instantly activate this Power Mode and start recording"
+                            )
+
                             Spacer()
                         }
                     }
@@ -705,9 +730,13 @@ struct ConfigurationView: View {
     }
     
     private func getConfigForForm() -> PowerModeConfig {
+        let shortcut = KeyboardShortcuts.getShortcut(for: .powerMode(id: powerModeConfigId))
+        let hotkeyString = shortcut != nil ? "configured" : nil
+
         switch mode {
         case .add:
                 return PowerModeConfig(
+                id: powerModeConfigId,
                 name: configName,
                 emoji: selectedEmoji,
                 appConfigs: selectedAppConfigs.isEmpty ? nil : selectedAppConfigs,
@@ -720,7 +749,8 @@ struct ConfigurationView: View {
                     selectedAIProvider: selectedAIProvider,
                     selectedAIModel: selectedAIModel,
                     isAutoSendEnabled: isAutoSendEnabled,
-                    isDefault: isDefault
+                    isDefault: isDefault,
+                    hotkeyShortcut: hotkeyString
                 )
         case .edit(let config):
             var updatedConfig = config
@@ -737,6 +767,7 @@ struct ConfigurationView: View {
             updatedConfig.selectedAIProvider = selectedAIProvider
             updatedConfig.selectedAIModel = selectedAIModel
             updatedConfig.isDefault = isDefault
+            updatedConfig.hotkeyShortcut = hotkeyString
             return updatedConfig
         }
     }
@@ -817,19 +848,17 @@ struct ConfigurationView: View {
             return
         }
         
-        // If validation passes, save the configuration
+        if isDefault {
+            powerModeManager.setAsDefault(configId: config.id, skipSave: true)
+        }
+
         switch mode {
         case .add:
             powerModeManager.addConfiguration(config)
         case .edit:
             powerModeManager.updateConfiguration(config)
         }
-        
-        // Handle default flag separately to ensure only one config is default
-        if isDefault {
-            powerModeManager.setAsDefault(configId: config.id)
-        }
-        
+
         presentationMode.wrappedValue.dismiss()
     }
 }

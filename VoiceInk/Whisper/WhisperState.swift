@@ -138,7 +138,7 @@ class WhisperState: NSObject, ObservableObject {
         }
     }
     
-    func toggleRecord() async {
+    func toggleRecord(powerModeId: UUID? = nil) async {
         if recordingState == .recording {
             await recorder.stopRecording()
             if let recordedFile {
@@ -195,7 +195,14 @@ class WhisperState: NSObject, ObservableObject {
                                 self.recordingState = .recording
                             }
 
-                            await ActiveWindowService.shared.applyConfigurationForCurrentApp()
+                            if let powerModeId = powerModeId {
+                                await ActiveWindowService.shared.applyConfiguration(powerModeId: powerModeId)
+                            } else {
+                                let hasActiveSession = await PowerModeSessionManager.shared.hasActiveSession
+                                if !hasActiveSession {
+                                    await ActiveWindowService.shared.applyConfiguration()
+                                }
+                            }
 
                             // Load model and capture context in background without blocking
                             Task.detached { [weak self] in

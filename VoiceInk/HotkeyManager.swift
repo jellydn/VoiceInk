@@ -43,6 +43,7 @@ class HotkeyManager: ObservableObject {
     
     private var whisperState: WhisperState
     private var miniRecorderShortcutManager: MiniRecorderShortcutManager
+    private var powerModeShortcutManager: PowerModeShortcutManager
     
     // MARK: - Helper Properties
     private var canProcessHotkeyAction: Bool {
@@ -73,7 +74,7 @@ class HotkeyManager: ObservableObject {
     private var shortcutCurrentKeyState = false
     private var lastShortcutTriggerTime: Date?
     private let shortcutCooldownInterval: TimeInterval = 0.5
-    
+
     enum HotkeyOption: String, CaseIterable {
         case none = "none"
         case rightOption = "rightOption"
@@ -127,6 +128,7 @@ class HotkeyManager: ObservableObject {
         
         self.whisperState = whisperState
         self.miniRecorderShortcutManager = MiniRecorderShortcutManager(whisperState: whisperState)
+        self.powerModeShortcutManager = PowerModeShortcutManager(whisperState: whisperState)
 
         KeyboardShortcuts.onKeyUp(for: .pasteLastTranscription) { [weak self] in
             guard let self = self else { return }

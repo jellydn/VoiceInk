@@ -32,10 +32,10 @@ extension WhisperState {
     
     // MARK: - Mini Recorder Management
     
-    func toggleMiniRecorder() async {
+    func toggleMiniRecorder(powerModeId: UUID? = nil) async {
         if isMiniRecorderVisible {
             if recordingState == .recording {
-                await toggleRecord()
+                await toggleRecord(powerModeId: powerModeId)
             } else {
                 await cancelRecording()
             }
@@ -46,7 +46,7 @@ extension WhisperState {
                 isMiniRecorderVisible = true // This will call showRecorderPanel() via didSet
             }
 
-            await toggleRecord()
+            await toggleRecord(powerModeId: powerModeId)
         }
     }
     

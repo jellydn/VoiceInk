@@ -41,28 +41,36 @@ class PowerModeSessionManager {
             return
         }
 
-        let originalState = ApplicationState(
-            isEnhancementEnabled: enhancementService.isEnhancementEnabled,
-            useScreenCaptureContext: enhancementService.useScreenCaptureContext,
-            selectedPromptId: enhancementService.selectedPromptId?.uuidString,
-            selectedAIProvider: enhancementService.getAIService()?.selectedProvider.rawValue,
-            selectedAIModel: enhancementService.getAIService()?.currentModel,
-            selectedLanguage: UserDefaults.standard.string(forKey: "SelectedLanguage"),
-            transcriptionModelName: whisperState.currentTranscriptionModel?.name
-        )
+        // Only capture baseline if NO session exists
+        if loadSession() == nil {
+            let originalState = ApplicationState(
+                isEnhancementEnabled: enhancementService.isEnhancementEnabled,
+                useScreenCaptureContext: enhancementService.useScreenCaptureContext,
+                selectedPromptId: enhancementService.selectedPromptId?.uuidString,
+                selectedAIProvider: enhancementService.getAIService()?.selectedProvider.rawValue,
+                selectedAIModel: enhancementService.getAIService()?.currentModel,
+                selectedLanguage: UserDefaults.standard.string(forKey: "SelectedLanguage"),
+                transcriptionModelName: whisperState.currentTranscriptionModel?.name
+            )
 
-        let newSession = PowerModeSession(
-            id: UUID(),
-            startTime: Date(),
-            originalState: originalState
-        )
-        saveSession(newSession)
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(updateSessionSnapshot), name: .AppSettingsDidChange, object: nil)
+            let newSession = PowerModeSession(
+                id: UUID(),
+                startTime: Date(),
+                originalState: originalState
+            )
+            saveSession(newSession)
 
+            NotificationCenter.default.addObserver(self, selector: #selector(updateSessionSnapshot), name: .AppSettingsDidChange, object: nil)
+        }
+
+        // Always apply the new configuration
         isApplyingPowerModeConfig = true
         await applyConfiguration(config)
         isApplyingPowerModeConfig = false
+    }
+
+    var hasActiveSession: Bool {
+        return loadSession() != nil
     }
 
     func endSession() async {
