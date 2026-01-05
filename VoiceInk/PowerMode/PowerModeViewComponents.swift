@@ -65,7 +65,26 @@ struct PowerModeConfigurationsGrid: View {
                 )
             }
         }
-        .padding(.horizontal)
+    }
+}
+
+/// Small, consistent icon-only add button used across Power Mode configuration rows.
+struct AddIconButton: View {
+    let helpText: String
+    var isDisabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 18))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+        .accessibilityLabel(helpText)
+        .disabled(isDisabled)
     }
 }
 
@@ -166,7 +185,7 @@ struct ConfigurationRow: View {
                                     .font(.caption2)
                             }
                         }
-                        
+
                         if websiteCount > 0 {
                             HStack(spacing: 4) {
                                 Image(systemName: "globe")
@@ -176,6 +195,7 @@ struct ConfigurationRow: View {
                             }
                         }
                     }
+                    .padding(.top, 2)
                     .foregroundColor(.secondary)
                 }
                 
@@ -193,7 +213,6 @@ struct ConfigurationRow: View {
             
             if selectedModel != nil || selectedLanguage != nil || config.isAIEnhancementEnabled || config.isAutoSendEnabled {
                 Divider()
-                    .padding(.horizontal, 16)
                 
                 HStack(spacing: 8) {
                     if let model = selectedModel, model != "Default" {
@@ -203,8 +222,8 @@ struct ConfigurationRow: View {
                             Text(model)
                                 .font(.caption)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(Capsule()
                             .fill(Color(NSColor.controlBackgroundColor)))
                         .overlay(
@@ -220,8 +239,8 @@ struct ConfigurationRow: View {
                             Text(language)
                                 .font(.caption)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(Capsule()
                             .fill(Color(NSColor.controlBackgroundColor)))
                         .overlay(
@@ -237,8 +256,8 @@ struct ConfigurationRow: View {
                             Text(modelName.count > 20 ? String(modelName.prefix(18)) + "..." : modelName)
                                 .font(.caption)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(Capsule()
                             .fill(Color(NSColor.controlBackgroundColor)))
                         .overlay(
@@ -254,8 +273,8 @@ struct ConfigurationRow: View {
                             Text("Auto Send")
                                 .font(.caption)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(Capsule()
                             .fill(Color(NSColor.controlBackgroundColor)))
                         .overlay(
@@ -271,8 +290,8 @@ struct ConfigurationRow: View {
                                 Text("Context Awareness")
                                     .font(.caption)
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Capsule()
                                 .fill(Color(NSColor.controlBackgroundColor)))
                             .overlay(
@@ -287,8 +306,8 @@ struct ConfigurationRow: View {
                             Text(selectedPrompt?.title ?? "AI")
                                 .font(.caption)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(Capsule()
                             .fill(Color.accentColor.opacity(0.1)))
                         .foregroundColor(.accentColor)
@@ -296,10 +315,13 @@ struct ConfigurationRow: View {
 
                     Spacer()
                 }
-                .padding(.vertical, 10)
+                
+                .padding(.vertical, 6)
                 .padding(.horizontal, 16)
+                .background(Color.secondary.opacity(0.1))
             }
     }
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     .background(CardBackground(isSelected: isEditing))
     .opacity(config.isEnabled ? 1.0 : 0.5)
 
