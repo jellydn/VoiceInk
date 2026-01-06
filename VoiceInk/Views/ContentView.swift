@@ -142,7 +142,8 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 940, minHeight: 730)
+        .frame(width: 950)
+        .frame(minHeight: 730)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { notification in
             if let destination = notification.userInfo?["destination"] as? String {
                 switch destination {
