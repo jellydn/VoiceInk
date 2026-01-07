@@ -25,6 +25,7 @@ class CustomModelManager: ObservableObject {
     func removeCustomModel(withId id: UUID) {
         customModels.removeAll { $0.id == id }
         saveCustomModels()
+        APIKeyManager.shared.deleteCustomModelAPIKey(forModelId: id)
         logger.info("Removed custom model with ID: \(id)")
     }
     

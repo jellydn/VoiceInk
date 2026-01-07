@@ -91,7 +91,7 @@ struct CloudModel: TranscriptionModel {
     }
 }
 
-// A new struct for custom cloud models
+/// Custom cloud model with API key stored in Keychain.
 struct CustomCloudModel: TranscriptionModel, Codable {
     let id: UUID
     let name: String
@@ -99,21 +99,58 @@ struct CustomCloudModel: TranscriptionModel, Codable {
     let description: String
     let provider: ModelProvider = .custom
     let apiEndpoint: String
-    let apiKey: String
     let modelName: String
     let isMultilingualModel: Bool
     let supportedLanguages: [String: String]
 
-    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, apiKey: String, modelName: String, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
+    /// API key retrieved from Keychain by model ID.
+    var apiKey: String {
+        APIKeyManager.shared.getCustomModelAPIKey(forModelId: id) ?? ""
+    }
+
+    init(id: UUID = UUID(), name: String, displayName: String, description: String, apiEndpoint: String, modelName: String, isMultilingual: Bool = true, supportedLanguages: [String: String]? = nil) {
         self.id = id
         self.name = name
         self.displayName = displayName
         self.description = description
         self.apiEndpoint = apiEndpoint
-        self.apiKey = apiKey
         self.modelName = modelName
         self.isMultilingualModel = isMultilingual
         self.supportedLanguages = supportedLanguages ?? PredefinedModels.getLanguageDictionary(isMultilingual: isMultilingual)
+    }
+
+    /// Custom Codable to migrate legacy apiKey from JSON to Keychain.
+    private enum CodingKeys: String, CodingKey {
+        case id, name, displayName, description, apiEndpoint, modelName, isMultilingualModel, supportedLanguages
+        case apiKey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        description = try container.decode(String.self, forKey: .description)
+        apiEndpoint = try container.decode(String.self, forKey: .apiEndpoint)
+        modelName = try container.decode(String.self, forKey: .modelName)
+        isMultilingualModel = try container.decode(Bool.self, forKey: .isMultilingualModel)
+        supportedLanguages = try container.decode([String: String].self, forKey: .supportedLanguages)
+
+        if let legacyApiKey = try container.decodeIfPresent(String.self, forKey: .apiKey), !legacyApiKey.isEmpty {
+            APIKeyManager.shared.saveCustomModelAPIKey(legacyApiKey, forModelId: id)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(description, forKey: .description)
+        try container.encode(apiEndpoint, forKey: .apiEndpoint)
+        try container.encode(modelName, forKey: .modelName)
+        try container.encode(isMultilingualModel, forKey: .isMultilingualModel)
+        try container.encode(supportedLanguages, forKey: .supportedLanguages)
     }
 } 
 

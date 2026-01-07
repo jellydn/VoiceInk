@@ -6,7 +6,7 @@ class ElevenLabsTranscriptionService {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ElevenLabsTranscriptionService")
     
     func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
-        guard let apiKey = UserDefaults.standard.string(forKey: "ElevenLabsAPIKey"), !apiKey.isEmpty else {
+        guard let apiKey = APIKeyManager.shared.getAPIKey(forProvider: "ElevenLabs"), !apiKey.isEmpty else {
             throw CloudTranscriptionError.missingAPIKey
         }
         

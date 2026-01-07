@@ -188,11 +188,11 @@ class SystemInfoService {
     }
 
     private func getLicenseStatus() -> String {
-        let userDefaults = UserDefaults.standard
+        let licenseManager = LicenseManager.shared
 
         // Check for existing license key and activation
-        if let _ = userDefaults.licenseKey {
-            if userDefaults.activationId != nil || !userDefaults.bool(forKey: "VoiceInkLicenseRequiresActivation") {
+        if licenseManager.licenseKey != nil {
+            if licenseManager.activationId != nil || !UserDefaults.standard.bool(forKey: "VoiceInkLicenseRequiresActivation") {
                 return "Licensed (Pro)"
             }
         }
