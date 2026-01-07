@@ -269,12 +269,23 @@ struct ConfigurationView: View {
                             Text(model.displayName).tag(model.name as String?)
                         }
                     }
+                    .onChange(of: selectedTranscriptionModelName) { _, newModelName in
+                        // Auto-set language to "auto" for models that only support auto-detection
+                        if let modelName = newModelName ?? whisperState.usableModels.first?.name,
+                           let model = whisperState.allAvailableModels.first(where: { $0.name == modelName }),
+                           model.provider == .parakeet || model.provider == .gemini {
+                            selectedLanguage = "auto"
+                        }
+                    }
                 }
 
                 if languageSelectionDisabled() {
                     LabeledContent("Language") {
                         Text("Autodetected")
                             .foregroundColor(.secondary)
+                    }
+                    .onAppear {
+                        selectedLanguage = "auto"
                     }
                 } else if let selectedModel = effectiveModelName,
                           let modelInfo = whisperState.allAvailableModels.first(where: { $0.name == selectedModel }),

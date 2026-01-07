@@ -16,6 +16,30 @@ class MenuBarManager: ObservableObject {
     init() {
         self.isMenuBarOnly = UserDefaults.standard.bool(forKey: "IsMenuBarOnly")
         updateAppActivationPolicy()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidClose),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func windowDidClose(_ notification: Notification) {
+        guard isMenuBarOnly else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let hasVisibleWindows = NSApplication.shared.windows.contains {
+                $0.isVisible && $0.level == .normal && !$0.styleMask.contains(.nonactivatingPanel)
+            }
+            if !hasVisibleWindows {
+                NSApplication.shared.setActivationPolicy(.accessory)
+            }
+        }
     }
 
     func configure(modelContainer: ModelContainer, whisperState: WhisperState) {
@@ -32,11 +56,9 @@ class MenuBarManager: ObservableObject {
     }
     
     func focusMainWindow() {
-        applyActivationPolicy()
-        DispatchQueue.main.async {
-            if WindowManager.shared.showMainWindow() == nil {
-                print("MenuBarManager: Unable to locate main window to focus")
-            }
+        NSApplication.shared.setActivationPolicy(.regular)
+        if WindowManager.shared.showMainWindow() == nil {
+            print("MenuBarManager: Unable to locate main window to focus")
         }
     }
     
@@ -63,25 +85,21 @@ class MenuBarManager: ObservableObject {
     func openMainWindowAndNavigate(to destination: String) {
         print("MenuBarManager: Navigating to \(destination)")
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        NSApplication.shared.setActivationPolicy(.regular)
 
-            self.applyActivationPolicy()
+        guard WindowManager.shared.showMainWindow() != nil else {
+            print("MenuBarManager: Unable to show main window for navigation")
+            return
+        }
 
-            guard WindowManager.shared.showMainWindow() != nil else {
-                print("MenuBarManager: Unable to show main window for navigation")
-                return
-            }
-
-            // Post a notification to navigate to the desired destination
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                NotificationCenter.default.post(
-                    name: .navigateToDestination,
-                    object: nil,
-                    userInfo: ["destination": destination]
-                )
-                print("MenuBarManager: Posted navigation notification for \(destination)")
-            }
+        // Post a notification to navigate to the desired destination
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NotificationCenter.default.post(
+                name: .navigateToDestination,
+                object: nil,
+                userInfo: ["destination": destination]
+            )
+            print("MenuBarManager: Posted navigation notification for \(destination)")
         }
     }
 
@@ -91,6 +109,7 @@ class MenuBarManager: ObservableObject {
             print("MenuBarManager: Dependencies not configured")
             return
         }
+        NSApplication.shared.setActivationPolicy(.regular)
         HistoryWindowController.shared.showHistoryWindow(
             modelContainer: modelContainer,
             whisperState: whisperState
