@@ -60,16 +60,17 @@ class HotkeyManager: ObservableObject {
     
     // Key state tracking
     private var currentKeyState = false
-    private var keyPressStartTime: Date?
-    private let briefPressThreshold = 1.7
+    private var keyPressEventTime: TimeInterval?
+    private let briefPressThreshold = 0.5
     private var isHandsFreeMode = false
-    
+
     // Debounce for Fn key
     private var fnDebounceTask: Task<Void, Never>?
     private var pendingFnKeyState: Bool? = nil
-    
+    private var pendingFnEventTime: TimeInterval? = nil
+
     // Keyboard shortcut state tracking
-    private var shortcutKeyPressStartTime: Date?
+    private var shortcutKeyPressEventTime: TimeInterval?
     private var isShortcutHandsFreeMode = false
     private var shortcutCurrentKeyState = false
     private var lastShortcutTriggerTime: Date?
@@ -230,22 +231,24 @@ class HotkeyManager: ObservableObject {
     }
     
     private func setupCustomShortcutMonitoring() {
-        // Hotkey 1
         if selectedHotkey1 == .custom {
             KeyboardShortcuts.onKeyDown(for: .toggleMiniRecorder) { [weak self] in
-                Task { @MainActor in await self?.handleCustomShortcutKeyDown() }
+                let eventTime = ProcessInfo.processInfo.systemUptime
+                Task { @MainActor in await self?.handleCustomShortcutKeyDown(eventTime: eventTime) }
             }
             KeyboardShortcuts.onKeyUp(for: .toggleMiniRecorder) { [weak self] in
-                Task { @MainActor in await self?.handleCustomShortcutKeyUp() }
+                let eventTime = ProcessInfo.processInfo.systemUptime
+                Task { @MainActor in await self?.handleCustomShortcutKeyUp(eventTime: eventTime) }
             }
         }
-        // Hotkey 2
         if selectedHotkey2 == .custom {
             KeyboardShortcuts.onKeyDown(for: .toggleMiniRecorder2) { [weak self] in
-                Task { @MainActor in await self?.handleCustomShortcutKeyDown() }
+                let eventTime = ProcessInfo.processInfo.systemUptime
+                Task { @MainActor in await self?.handleCustomShortcutKeyDown(eventTime: eventTime) }
             }
             KeyboardShortcuts.onKeyUp(for: .toggleMiniRecorder2) { [weak self] in
-                Task { @MainActor in await self?.handleCustomShortcutKeyUp() }
+                let eventTime = ProcessInfo.processInfo.systemUptime
+                Task { @MainActor in await self?.handleCustomShortcutKeyUp(eventTime: eventTime) }
             }
         }
     }
@@ -274,18 +277,18 @@ class HotkeyManager: ObservableObject {
     
     private func resetKeyStates() {
         currentKeyState = false
-        keyPressStartTime = nil
+        keyPressEventTime = nil
         isHandsFreeMode = false
         shortcutCurrentKeyState = false
-        shortcutKeyPressStartTime = nil
+        shortcutKeyPressEventTime = nil
         isShortcutHandsFreeMode = false
     }
     
     private func handleModifierKeyEvent(_ event: NSEvent) async {
         let keycode = event.keyCode
         let flags = event.modifierFlags
-        
-        // Determine which hotkey (if any) is being triggered
+        let eventTime = event.timestamp
+
         let activeHotkey: HotkeyOption?
         if selectedHotkey1.isModifierKey && selectedHotkey1.keyCode == keycode {
             activeHotkey = selectedHotkey1
@@ -294,11 +297,11 @@ class HotkeyManager: ObservableObject {
         } else {
             activeHotkey = nil
         }
-        
+
         guard let hotkey = activeHotkey else { return }
-        
+
         var isKeyPressed = false
-        
+
         switch hotkey {
         case .rightOption, .leftOption:
             isKeyPressed = flags.contains(.option)
@@ -306,13 +309,13 @@ class HotkeyManager: ObservableObject {
             isKeyPressed = flags.contains(.control)
         case .fn:
             isKeyPressed = flags.contains(.function)
-            // Debounce Fn key
             pendingFnKeyState = isKeyPressed
+            pendingFnEventTime = eventTime
             fnDebounceTask?.cancel()
-            fnDebounceTask = Task { [pendingState = isKeyPressed] in
+            fnDebounceTask = Task { [pendingState = isKeyPressed, pendingTime = eventTime] in
                 try? await Task.sleep(nanoseconds: 75_000_000) // 75ms
                 if pendingFnKeyState == pendingState {
-                    await self.processKeyPress(isKeyPressed: pendingState)
+                    await self.processKeyPress(isKeyPressed: pendingState, eventTime: pendingTime)
                 }
             }
             return
@@ -324,15 +327,15 @@ class HotkeyManager: ObservableObject {
             return // Should not reach here
         }
 
-        await processKeyPress(isKeyPressed: isKeyPressed)
+        await processKeyPress(isKeyPressed: isKeyPressed, eventTime: eventTime)
     }
     
-    private func processKeyPress(isKeyPressed: Bool) async {
+    private func processKeyPress(isKeyPressed: Bool, eventTime: TimeInterval) async {
         guard isKeyPressed != currentKeyState else { return }
         currentKeyState = isKeyPressed
 
         if isKeyPressed {
-            keyPressStartTime = Date()
+            keyPressEventTime = eventTime
 
             if isHandsFreeMode {
                 isHandsFreeMode = false
@@ -346,10 +349,8 @@ class HotkeyManager: ObservableObject {
                 await whisperState.handleToggleMiniRecorder()
             }
         } else {
-            let now = Date()
-
-            if let startTime = keyPressStartTime {
-                let pressDuration = now.timeIntervalSince(startTime)
+            if let startTime = keyPressEventTime {
+                let pressDuration = eventTime - startTime
 
                 if pressDuration < briefPressThreshold {
                     isHandsFreeMode = true
@@ -359,43 +360,41 @@ class HotkeyManager: ObservableObject {
                 }
             }
 
-            keyPressStartTime = nil
+            keyPressEventTime = nil
         }
     }
     
-    private func handleCustomShortcutKeyDown() async {
+    private func handleCustomShortcutKeyDown(eventTime: TimeInterval) async {
         if let lastTrigger = lastShortcutTriggerTime,
            Date().timeIntervalSince(lastTrigger) < shortcutCooldownInterval {
             return
         }
-        
+
         guard !shortcutCurrentKeyState else { return }
         shortcutCurrentKeyState = true
         lastShortcutTriggerTime = Date()
-        shortcutKeyPressStartTime = Date()
-        
+        shortcutKeyPressEventTime = eventTime
+
         if isShortcutHandsFreeMode {
             isShortcutHandsFreeMode = false
             guard canProcessHotkeyAction else { return }
             await whisperState.handleToggleMiniRecorder()
             return
         }
-        
+
         if !whisperState.isMiniRecorderVisible {
             guard canProcessHotkeyAction else { return }
             await whisperState.handleToggleMiniRecorder()
         }
     }
-    
-    private func handleCustomShortcutKeyUp() async {
+
+    private func handleCustomShortcutKeyUp(eventTime: TimeInterval) async {
         guard shortcutCurrentKeyState else { return }
         shortcutCurrentKeyState = false
-        
-        let now = Date()
-        
-        if let startTime = shortcutKeyPressStartTime {
-            let pressDuration = now.timeIntervalSince(startTime)
-            
+
+        if let startTime = shortcutKeyPressEventTime {
+            let pressDuration = eventTime - startTime
+
             if pressDuration < briefPressThreshold {
                 isShortcutHandsFreeMode = true
             } else {
@@ -403,8 +402,8 @@ class HotkeyManager: ObservableObject {
                 await whisperState.handleToggleMiniRecorder()
             }
         }
-        
-        shortcutKeyPressStartTime = nil
+
+        shortcutKeyPressEventTime = nil
     }
     
     // Computed property for backward compatibility with UI
