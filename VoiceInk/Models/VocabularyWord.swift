@@ -3,8 +3,8 @@ import SwiftData
 
 @Model
 final class VocabularyWord {
-    @Attribute(.unique) var word: String
-    var dateAdded: Date
+    var word: String = ""
+    var dateAdded: Date = Date()
 
     init(word: String, dateAdded: Date = Date()) {
         self.word = word

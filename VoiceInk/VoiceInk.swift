@@ -143,13 +143,13 @@ struct VoiceInkApp: App {
                 cloudKitDatabase: .none
             )
 
-            // Dictionary configuration
+            // Dictionary configuration (CloudKit-synchronized)
             let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
             let dictionaryConfig = ModelConfiguration(
                 "dictionary",
                 schema: dictionarySchema,
                 url: dictionaryStoreURL,
-                cloudKitDatabase: .none
+                cloudKitDatabase: .private("iCloud.com.prakashjoshipax.VoiceInk")
             )
 
             // Initialize container
