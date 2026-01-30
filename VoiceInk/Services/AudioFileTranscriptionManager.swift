@@ -92,7 +92,7 @@ class AudioTranscriptionManager: ObservableObject {
                 let powerModeName = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.name : nil
                 let powerModeEmoji = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.emoji : nil
 
-                if UserDefaults.standard.object(forKey: "IsTextFormattingEnabled") as? Bool ?? true {
+                if UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled") {
                     text = WhisperTextFormatter.format(text)
                 }
 
@@ -124,6 +124,7 @@ class AudioTranscriptionManager: ObservableObject {
                         modelContext.insert(transcription)
                         try modelContext.save()
                         NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
+                        NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                         currentTranscription = transcription
                     } catch {
                         logger.error("Enhancement failed: \(error.localizedDescription)")
@@ -140,6 +141,7 @@ class AudioTranscriptionManager: ObservableObject {
                         modelContext.insert(transcription)
                         try modelContext.save()
                         NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
+                        NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                         currentTranscription = transcription
                     }
                 } else {
@@ -156,6 +158,7 @@ class AudioTranscriptionManager: ObservableObject {
                     modelContext.insert(transcription)
                     try modelContext.save()
                     NotificationCenter.default.post(name: .transcriptionCreated, object: transcription)
+                    NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                     currentTranscription = transcription
                 }
                 

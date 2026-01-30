@@ -51,7 +51,7 @@ class AudioTranscriptionService: ObservableObject {
             let powerModeName = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.name : nil
             let powerModeEmoji = (activePowerModeConfig?.isEnabled == true) ? activePowerModeConfig?.emoji : nil
 
-            if UserDefaults.standard.object(forKey: "IsTextFormattingEnabled") as? Bool ?? true {
+            if UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled") {
                 text = WhisperTextFormatter.format(text)
             }
 
@@ -113,6 +113,7 @@ class AudioTranscriptionService: ObservableObject {
                     do {
                         try modelContext.save()
                         NotificationCenter.default.post(name: .transcriptionCreated, object: newTranscription)
+                        NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                     } catch {
                         logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
                     }
@@ -143,14 +144,15 @@ class AudioTranscriptionService: ObservableObject {
                     do {
                         try modelContext.save()
                         NotificationCenter.default.post(name: .transcriptionCreated, object: newTranscription)
+                        NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                     } catch {
                         logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
                     }
-                    
+
                     await MainActor.run {
                         isTranscribing = false
                     }
-                    
+
                     return newTranscription
                 }
             } else {
@@ -167,14 +169,15 @@ class AudioTranscriptionService: ObservableObject {
                 modelContext.insert(newTranscription)
                 do {
                     try modelContext.save()
+                    NotificationCenter.default.post(name: .transcriptionCompleted, object: newTranscription)
                 } catch {
                     logger.error("❌ Failed to save transcription: \(error.localizedDescription)")
                 }
-                
+
                 await MainActor.run {
                     isTranscribing = false
                 }
-                
+
                 return newTranscription
             }
         } catch {

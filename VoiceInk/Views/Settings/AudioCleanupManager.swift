@@ -40,8 +40,7 @@ class AudioCleanupManager {
     /// Get information about the files that would be cleaned up
     func getCleanupInfo(modelContext: ModelContext) async -> (fileCount: Int, totalSize: Int64, transcriptions: [Transcription]) {
         // Get retention period from UserDefaults
-        let retentionDays = UserDefaults.standard.integer(forKey: "AudioRetentionPeriod")
-        let effectiveRetentionDays = retentionDays > 0 ? retentionDays : defaultRetentionDays
+        let effectiveRetentionDays = UserDefaults.standard.integer(forKey: "AudioRetentionPeriod")
 
         // Calculate the cutoff date
         let calendar = Calendar.current
@@ -90,8 +89,7 @@ class AudioCleanupManager {
     /// Perform the cleanup operation
     private func performCleanup(modelContext: ModelContext) async {
         // Get retention period from UserDefaults
-        let retentionDays = UserDefaults.standard.integer(forKey: "AudioRetentionPeriod")
-        let effectiveRetentionDays = retentionDays > 0 ? retentionDays : defaultRetentionDays
+        let effectiveRetentionDays = UserDefaults.standard.integer(forKey: "AudioRetentionPeriod")
 
         // Check if automatic cleanup is enabled
         let isCleanupEnabled = UserDefaults.standard.bool(forKey: "IsAudioCleanupEnabled")

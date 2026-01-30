@@ -90,11 +90,10 @@ struct PermissionCard: View {
     let buttonTitle: String
     let buttonAction: () -> Void
     let checkPermission: () -> Void
-    var infoTipTitle: String?
     var infoTipMessage: String?
     var infoTipLink: String?
     @State private var isRefreshing = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
@@ -103,23 +102,23 @@ struct PermissionCard: View {
                     Circle()
                         .fill(isGranted ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
                         .frame(width: 44, height: 44)
-                    
+
                     Image(systemName: isGranted ? "\(icon).fill" : icon)
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(isGranted ? .green : .orange)
                         .symbolRenderingMode(.hierarchical)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(title)
                             .font(.headline)
-                        if let infoTipTitle = infoTipTitle, let infoTipMessage = infoTipMessage {
-                            InfoTip(
-                                title: infoTipTitle,
-                                message: infoTipMessage,
-                                learnMoreURL: infoTipLink ?? ""
-                            )
+                        if let message = infoTipMessage {
+                            if let link = infoTipLink, !link.isEmpty {
+                                InfoTip(message, learnMoreURL: link)
+                            } else {
+                                InfoTip(message)
+                            }
                         }
                     }
                     Text(description)
@@ -259,7 +258,6 @@ struct PermissionsView: View {
                             }
                         },
                         checkPermission: { permissionManager.checkAccessibilityPermissions() },
-                        infoTipTitle: "Accessibility Access",
                         infoTipMessage: "VoiceInk uses Accessibility permissions to paste the transcribed text directly into other applications at your cursor's position. This allows for a seamless dictation experience across your Mac."
                     )
                     
@@ -278,7 +276,6 @@ struct PermissionsView: View {
                             }
                         },
                         checkPermission: { permissionManager.checkScreenRecordingPermission() },
-                        infoTipTitle: "Screen Recording Access",
                         infoTipMessage: "VoiceInk captures on-screen text to understand the context of your voice input, which significantly improves transcription accuracy. Your privacy is important: this data is processed locally and is not stored.",
                         infoTipLink: "https://tryvoiceink.com/docs/contextual-awareness"
                     )

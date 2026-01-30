@@ -12,6 +12,6 @@ class EnhancementShortcutSettings: ObservableObject {
     }
 
     private init() {
-        self.isToggleEnhancementShortcutEnabled = UserDefaults.standard.object(forKey: "isToggleEnhancementShortcutEnabled") as? Bool ?? true
+        self.isToggleEnhancementShortcutEnabled = UserDefaults.standard.bool(forKey: "isToggleEnhancementShortcutEnabled")
     }
 }

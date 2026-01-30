@@ -50,10 +50,13 @@ class WhisperState: NSObject, ObservableObject {
     
     @Published var isMiniRecorderVisible = false {
         didSet {
-            if isMiniRecorderVisible {
-                showRecorderPanel()
-            } else {
-                hideRecorderPanel()
+            // Dispatch asynchronously to avoid "Publishing changes from within view updates" warning
+            DispatchQueue.main.async { [self] in
+                if isMiniRecorderVisible {
+                    showRecorderPanel()
+                } else {
+                    hideRecorderPanel()
+                }
             }
         }
     }
@@ -158,6 +161,7 @@ class WhisperState: NSObject, ObservableObject {
 
                     await transcribeAudio(on: transcription)
                 } else {
+                    try? FileManager.default.removeItem(at: recordedFile)
                     await MainActor.run {
                         recordingState = .idle
                     }
@@ -314,7 +318,7 @@ class WhisperState: NSObject, ObservableObject {
 
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if UserDefaults.standard.object(forKey: "IsTextFormattingEnabled") as? Bool ?? true {
+            if UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled") {
                 text = WhisperTextFormatter.format(text)
                 logger.notice("📝 Formatted transcript: \(text, privacy: .public)")
             }

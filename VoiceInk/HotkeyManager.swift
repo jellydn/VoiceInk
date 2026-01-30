@@ -124,8 +124,7 @@ class HotkeyManager: ObservableObject {
         self.selectedHotkey2 = HotkeyOption(rawValue: UserDefaults.standard.string(forKey: "selectedHotkey2") ?? "") ?? .none
         
         self.isMiddleClickToggleEnabled = UserDefaults.standard.bool(forKey: "isMiddleClickToggleEnabled")
-        let storedDelay = UserDefaults.standard.integer(forKey: "middleClickActivationDelay")
-        self.middleClickActivationDelay = storedDelay > 0 ? storedDelay : 200
+        self.middleClickActivationDelay = UserDefaults.standard.integer(forKey: "middleClickActivationDelay")
         
         self.whisperState = whisperState
         self.miniRecorderShortcutManager = MiniRecorderShortcutManager(whisperState: whisperState)

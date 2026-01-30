@@ -42,6 +42,24 @@ class SystemInfoService {
         AI Provider: \(getAIProvider())
         AI Model: \(getAIModel())
 
+        UI SETTINGS:
+        Menu Bar Only: \(UserDefaults.standard.bool(forKey: "IsMenuBarOnly"))
+
+        CLIPBOARD & PASTE SETTINGS:
+        Restore Clipboard After Paste: \(UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"))
+        Clipboard Restore Delay: \(UserDefaults.standard.double(forKey: "clipboardRestoreDelay"))s
+        Use AppleScript Paste: \(UserDefaults.standard.bool(forKey: "UseAppleScriptPaste"))
+
+        POWER MODE:
+        Power Mode Enabled: \(UserDefaults.standard.bool(forKey: "powerModeUIFlag"))
+        Auto-Restore Enabled: \(UserDefaults.standard.bool(forKey: "powerModeAutoRestoreEnabled"))
+
+        DATA CLEANUP SETTINGS:
+        Auto-Delete Transcriptions: \(UserDefaults.standard.bool(forKey: "IsTranscriptionCleanupEnabled"))
+        Transcription Retention: \(UserDefaults.standard.integer(forKey: "TranscriptionRetentionMinutes")) minutes
+        Auto-Delete Audio Files: \(UserDefaults.standard.bool(forKey: "IsAudioCleanupEnabled"))
+        Audio Retention Period: \(UserDefaults.standard.integer(forKey: "AudioRetentionPeriod")) days
+
         PERMISSIONS:
         Accessibility: \(getAccessibilityStatus())
         Screen Recording: \(getScreenRecordingStatus())

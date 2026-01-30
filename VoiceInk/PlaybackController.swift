@@ -27,10 +27,6 @@ class PlaybackController: ObservableObject {
     private init() {
         mediaController = MediaRemoteAdapter.MediaController()
 
-        if !UserDefaults.standard.contains(key: "isPauseMediaEnabled") {
-            UserDefaults.standard.set(false, forKey: "isPauseMediaEnabled")
-        }
-
         setupMediaControllerCallbacks()
 
         if isPauseMediaEnabled {
@@ -128,10 +124,4 @@ class PlaybackController: ObservableObject {
     }
 }
 
-extension UserDefaults {
-    var isPauseMediaEnabled: Bool {
-        get { bool(forKey: "isPauseMediaEnabled") }
-        set { set(newValue, forKey: "isPauseMediaEnabled") }
-    }
-} 
 

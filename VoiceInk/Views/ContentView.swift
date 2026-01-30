@@ -218,6 +218,8 @@ private struct SidebarItemView: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .padding(.vertical, 8)
         .padding(.horizontal, 2)
     }

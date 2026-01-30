@@ -79,11 +79,10 @@ struct PowerModeView: View {
                                     .font(.system(size: 28, weight: .bold, design: .default))
                                     .foregroundColor(.primary)
                                 
-                                                                 InfoTip(
-                                     title: "What is Power Mode?",
-                                     message: "Automatically apply custom configurations based on the app/website you are using",
-                                     learnMoreURL: "https://tryvoiceink.com/docs/power-mode"
-                                 )
+                                InfoTip(
+                                    "Automatically apply custom configurations based on the app/website you are using.",
+                                    learnMoreURL: "https://tryvoiceink.com/docs/power-mode"
+                                )
                             }
                             
                             Text("Automate your workflows with context-aware configurations.")

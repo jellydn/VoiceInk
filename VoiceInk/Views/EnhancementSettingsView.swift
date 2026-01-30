@@ -26,8 +26,7 @@ struct EnhancementSettingsView: View {
                         HStack(spacing: 4) {
                             Text("Enable Enhancement")
                             InfoTip(
-                                title: "AI Enhancement",
-                                message: "AI enhancement lets you pass the transcribed audio through LLMs to post-process using different prompts suitable for different use cases like e-mails, summary, writing, etc.",
+                                "AI enhancement lets you pass the transcribed audio through LLMs to post-process using different prompts suitable for different use cases like e-mails, summary, writing, etc.",
                                 learnMoreURL: "https://tryvoiceink.com/docs/enhancements-configuring-models"
                             )
                         }
@@ -38,21 +37,15 @@ struct EnhancementSettingsView: View {
                         Toggle(isOn: $enhancementService.useClipboardContext) {
                             HStack(spacing: 4) {
                                 Text("Clipboard Context")
-                                InfoTip(
-                                    title: "Clipboard Context",
-                                    message: "Use text from clipboard to understand the context"
-                                )
+                                InfoTip("Use clipboard text to understand context for better enhancement.")
                             }
                         }
                         .toggleStyle(.switch)
-                        
+
                         Toggle(isOn: $enhancementService.useScreenCaptureContext) {
                             HStack(spacing: 4) {
                                 Text("Screen Context")
-                                InfoTip(
-                                    title: "Context Awareness",
-                                    message: "Learn what is on the screen to understand the context"
-                                )
+                                InfoTip("Capture on-screen text to understand context for better enhancement.")
                             }
                         }
                         .toggleStyle(.switch)

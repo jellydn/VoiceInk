@@ -70,7 +70,7 @@ actor WhisperContext {
         whisper_reset_timings(context)
         
         // Configure VAD if enabled by user and model is available
-        let isVADEnabled = UserDefaults.standard.object(forKey: "IsVADEnabled") as? Bool ?? true
+        let isVADEnabled = UserDefaults.standard.bool(forKey: "IsVADEnabled")
         if isVADEnabled, let vadModelPath = self.vadModelPath {
             params.vad = true
             params.vad_model_path = (vadModelPath as NSString).utf8String

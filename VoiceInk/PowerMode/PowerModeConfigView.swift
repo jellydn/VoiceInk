@@ -426,29 +426,20 @@ struct ConfigurationView: View {
                 Toggle(isOn: $isDefault) {
                     HStack(spacing: 6) {
                         Text("Set as default")
-                        InfoTip(
-                            title: "Default Power Mode",
-                            message: "Default power mode is used when no specific app or website matches are found"
-                        )
+                        InfoTip("Default power mode is used when no specific app or website matches are found.")
                     }
                 }
 
                 Toggle(isOn: $isAutoSendEnabled) {
                     HStack(spacing: 6) {
                         Text("Auto Send")
-                        InfoTip(
-                            title: "Auto Send",
-                            message: "Automatically presses the Return/Enter key after pasting text. This is useful for chat applications or forms where its not necessary to to make changes to the transcribed text"
-                        )
+                        InfoTip("Automatically presses the Return/Enter key after pasting text. Useful for chat applications or forms.")
                     }
                 }
 
                 HStack {
                     Text("Keyboard Shortcut")
-                    InfoTip(
-                        title: "Power Mode Hotkey",
-                        message: "Assign a unique keyboard shortcut to instantly activate this Power Mode and start recording"
-                    )
+                    InfoTip("Assign a unique keyboard shortcut to instantly activate this Power Mode and start recording.")
 
                     Spacer()
 

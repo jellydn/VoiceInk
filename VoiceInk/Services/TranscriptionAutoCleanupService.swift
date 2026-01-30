@@ -13,6 +13,12 @@ class TranscriptionAutoCleanupService {
 
     private let defaultRetentionMinutes: Int = 24 * 60
 
+    private var recordingsDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("com.prakashjoshipax.VoiceInk")
+            .appendingPathComponent("Recordings")
+    }
+
     private init() {}
 
     func startMonitoring(modelContext: ModelContext) {
@@ -26,12 +32,12 @@ class TranscriptionAutoCleanupService {
         )
 
         if UserDefaults.standard.bool(forKey: keyIsEnabled) {
-            
             Task { [weak self] in
                 guard let self = self, let modelContext = self.modelContext else { return }
                 await self.sweepOldTranscriptions(modelContext: modelContext)
+                await self.cleanupOrphanAudioFiles(modelContext: modelContext)
             }
-        } else {}
+        }
     }
 
     func stopMonitoring() {
@@ -48,7 +54,6 @@ class TranscriptionAutoCleanupService {
 
         let minutes = UserDefaults.standard.integer(forKey: keyRetentionMinutes)
         if minutes > 0 {
-            // Trigger a sweep based on the retention window
             if let modelContext = self.modelContext {
                 Task { [weak self] in
                     guard let self = self else { return }
@@ -102,7 +107,6 @@ class TranscriptionAutoCleanupService {
                 let items = try modelContext.fetch(descriptor)
                 var deletedCount = 0
                 for transcription in items {
-                    // Remove audio file if present
                     if let urlString = transcription.audioFileURL,
                        let url = URL(string: urlString),
                        FileManager.default.fileExists(atPath: url.path) {
@@ -115,6 +119,46 @@ class TranscriptionAutoCleanupService {
             }
         } catch {
             logger.error("Failed during transcription cleanup: \(error.localizedDescription)")
+        }
+    }
+
+    /// Deletes audio files in Recordings directory that have no corresponding Transcription record
+    private func cleanupOrphanAudioFiles(modelContext: ModelContext) async {
+        guard UserDefaults.standard.bool(forKey: keyIsEnabled) else {
+            return
+        }
+
+        do {
+            try await MainActor.run {
+                let descriptor = FetchDescriptor<Transcription>()
+                let transcriptions = try modelContext.fetch(descriptor)
+                let referencedFiles = Set(transcriptions.compactMap { transcription -> String? in
+                    guard let urlString = transcription.audioFileURL,
+                          let url = URL(string: urlString) else { return nil }
+                    return url.lastPathComponent
+                })
+
+                guard FileManager.default.fileExists(atPath: recordingsDirectory.path) else { return }
+                let filesInDirectory = try FileManager.default.contentsOfDirectory(
+                    at: recordingsDirectory,
+                    includingPropertiesForKeys: nil
+                )
+
+                var deletedCount = 0
+                for fileURL in filesInDirectory {
+                    let fileName = fileURL.lastPathComponent
+                    if !referencedFiles.contains(fileName) {
+                        try? FileManager.default.removeItem(at: fileURL)
+                        deletedCount += 1
+                    }
+                }
+
+                if deletedCount > 0 {
+                    logger.notice("Cleaned up \(deletedCount) orphan audio file(s)")
+                }
+            }
+        } catch {
+            logger.error("Failed during orphan audio cleanup: \(error.localizedDescription)")
         }
     }
 }

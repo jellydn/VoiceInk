@@ -165,16 +165,9 @@ struct PromptEditorView: View {
                             Divider().padding(.vertical, 4)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Text("Instructions")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    
-                                    InfoTip(
-                                        title: "Instructions",
-                                        message: "Define how AI should process the text."
-                                    )
-                                }
+                                Text("Instructions")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
                                 
                                 ZStack(alignment: .topLeading) {
                                     TextEditor(text: $promptText)
@@ -204,10 +197,7 @@ struct PromptEditorView: View {
                                             .toggleStyle(.switch)
                                             .controlSize(.small)
                                         
-                                        InfoTip(
-                                            title: "System Instructions",
-                                            message: "If enabled, your instructions are combined with a general-purpose template to improve transcription quality.\n\nDisable for full control over the AI's system prompt (for advanced users)."
-                                        )
+                                        InfoTip("If enabled, your instructions are combined with a general-purpose template to improve transcription quality.\n\nDisable for full control over the AI's system prompt (for advanced users).")
                                     }
                                     .padding(.top, 4)
                                 }
@@ -346,10 +336,7 @@ struct TriggerWordsEditor: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
-                InfoTip(
-                    title: "Trigger Words",
-                    message: "Add multiple words that can activate this prompt."
-                )
+                InfoTip("Add multiple words that can activate this prompt.")
             }
             
             HStack {

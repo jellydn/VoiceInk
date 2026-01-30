@@ -18,14 +18,7 @@ final class MediaController: ObservableObject {
         didSet { UserDefaults.standard.set(audioResumptionDelay, forKey: "audioResumptionDelay") }
     }
 
-    private init() {
-        if UserDefaults.standard.object(forKey: "isSystemMuteEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "isSystemMuteEnabled")
-        }
-        if UserDefaults.standard.object(forKey: "audioResumptionDelay") == nil {
-            UserDefaults.standard.set(0.0, forKey: "audioResumptionDelay")
-        }
-    }
+    private init() {}
 
     func muteSystemAudio() async -> Bool {
         guard isSystemMuteEnabled else { return false }
@@ -147,21 +140,5 @@ final class MediaController: ObservableObject {
 
         status = AudioObjectSetPropertyData(deviceID, &address, 0, nil, propertySize, &muteValue)
         return status == noErr
-    }
-}
-
-extension UserDefaults {
-    func contains(key: String) -> Bool {
-        return object(forKey: key) != nil
-    }
-
-    var isSystemMuteEnabled: Bool {
-        get { bool(forKey: "isSystemMuteEnabled") }
-        set { set(newValue, forKey: "isSystemMuteEnabled") }
-    }
-
-    var audioResumptionDelay: Double {
-        get { double(forKey: "audioResumptionDelay") }
-        set { set(newValue, forKey: "audioResumptionDelay") }
     }
 }

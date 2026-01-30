@@ -138,10 +138,7 @@ struct MetricsContent: View {
     }
     
     private var footerActionsView: some View {
-        HStack(spacing: 12) {
-            KeyboardShortcutsButton(showKeyboardShortcuts: $showKeyboardShortcuts)
-            CopySystemInfoButton()
-        }
+        CopySystemInfoButton()
     }
     
     private var formattedTimeSaved: String {
@@ -238,31 +235,6 @@ private enum Formatters {
         durationFormatter.unitsStyle = style
         durationFormatter.allowedUnits = interval >= 3600 ? [.hour, .minute] : [.minute, .second]
         return durationFormatter.string(from: interval) ?? fallback
-    }
-}
-
-private struct KeyboardShortcutsButton: View {
-    @Binding var showKeyboardShortcuts: Bool
-
-    var body: some View {
-        Button(action: {
-            showKeyboardShortcuts = true
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: "command")
-                    .font(.system(size: 13, weight: .medium))
-
-                Text("Keyboard Shortcuts")
-            }
-            .font(.system(size: 13, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(.thinMaterial))
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showKeyboardShortcuts, arrowEdge: .bottom) {
-            KeyboardShortcutsListView()
-        }
     }
 }
 

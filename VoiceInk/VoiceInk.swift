@@ -33,6 +33,8 @@ struct VoiceInkApp: App {
     @StateObject private var prewarmService: ModelPrewarmService
     
     init() {
+        AppDefaults.registerDefaults()
+
         if UserDefaults.standard.object(forKey: "powerModeUIFlag") == nil {
             let hasEnabledPowerModes = PowerModeManager.shared.configurations.contains { $0.isEnabled }
             UserDefaults.standard.set(hasEnabledPowerModes, forKey: "powerModeUIFlag")

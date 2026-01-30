@@ -118,7 +118,7 @@ class ImportExportService {
             isSystemMuteEnabled: mediaController.isSystemMuteEnabled,
             isPauseMediaEnabled: playbackController.isPauseMediaEnabled,
             audioResumptionDelay: mediaController.audioResumptionDelay,
-            isTextFormattingEnabled: UserDefaults.standard.object(forKey: keyIsTextFormattingEnabled) as? Bool ?? true,
+            isTextFormattingEnabled: UserDefaults.standard.bool(forKey: keyIsTextFormattingEnabled),
             isExperimentalFeaturesEnabled: UserDefaults.standard.bool(forKey: "isExperimentalFeaturesEnabled"),
             restoreClipboardAfterPaste: UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"),
             clipboardRestoreDelay: UserDefaults.standard.double(forKey: "clipboardRestoreDelay")

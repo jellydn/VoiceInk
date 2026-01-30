@@ -91,7 +91,7 @@ final class ModelPrewarmService: ObservableObject {
 
     private func shouldPrewarm() -> Bool {
         // Check if user has enabled prewarming
-        let isEnabled = UserDefaults.standard.object(forKey: prewarmEnabledKey) as? Bool ?? true
+        let isEnabled = UserDefaults.standard.bool(forKey: prewarmEnabledKey)
         guard isEnabled else {
             logger.notice("🌅 Prewarm disabled by user")
             return false
