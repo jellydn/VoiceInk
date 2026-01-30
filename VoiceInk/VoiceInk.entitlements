@@ -4,14 +4,7 @@
 <dict>
 	<key>com.apple.developer.aps-environment</key>
 	<string>development</string>
-	<key>com.apple.developer.icloud-container-identifiers</key>
-	<array>
-		<string>iCloud.com.prakashjoshipax.VoiceInk</string>
-	</array>
-	<key>com.apple.developer.icloud-services</key>
-	<array>
-		<string>CloudKit</string>
-	</array>
+	<!-- CloudKit removed for fork - using local storage only -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
 	<key>com.apple.security.automation.apple-events</key>
