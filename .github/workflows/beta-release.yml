@@ -68,22 +68,45 @@ jobs:
           # Setup whisper framework
           mkdir -p ~/VoiceInk-Dependencies
           cd ~/VoiceInk-Dependencies
-          
+
           if [ ! -d "whisper.cpp" ]; then
             git clone https://github.com/ggerganov/whisper.cpp.git
           fi
-          
+
           cd whisper.cpp
           ./build-xcframework.sh
-          
-          # Build VoiceInk
+
+          # Build VoiceInk (Debug for beta releases with ad-hoc signing)
           cd $GITHUB_WORKSPACE
           xcodebuild -project VoiceInk.xcodeproj \
             -scheme VoiceInk \
             -configuration Release \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Create DMG for Testing
+        run: |
+          # Find built .app file (Debug build for beta releases)
+          APP_PATH=$(find build/Build/Products/Debug -name "VoiceInk.app" -type d | head -1)
+
+          # Ad-hoc sign the app to reduce Gatekeeper issues
+          codesign --force --deep --sign - "$APP_PATH"
+
+          # Create temporary directory for DMG
+          mkdir -p dmg_temp
+          cp -R "$APP_PATH" dmg_temp/
+
+          # Create simple DMG using hdiutil (built-in macOS tool)
+          hdiutil create -volname "VoiceInk" \
+            -srcfolder dmg_temp \
+            -ov -format UDZO \
+            "VoiceInk-${{ steps.version.outputs.version }}.dmg"
+
+          # Clean up temporary directory
+          rm -rf dmg_temp
 
       - name: Create GitHub Beta Release
         uses: softprops/action-gh-release@v2
