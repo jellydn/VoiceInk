@@ -93,7 +93,7 @@ struct VocabularyView: View {
                     .help("Sort alphabetically")
 
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: .infinity), spacing: 12)], alignment: .leading, spacing: 12) {
+                        FlowLayout(spacing: 8) {
                             ForEach(sortedItems) { item in
                                 VocabularyWordView(item: item) {
                                     removeWord(item)
@@ -190,8 +190,6 @@ struct VocabularyWordView: View {
                 .font(.system(size: 13))
                 .lineLimit(1)
                 .foregroundColor(.primary)
-
-            Spacer(minLength: 8)
 
             Button(action: onDelete) {
                 Image(systemName: "xmark.circle.fill")

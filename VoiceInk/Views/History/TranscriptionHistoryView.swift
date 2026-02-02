@@ -204,11 +204,11 @@ struct TranscriptionHistoryView: View {
                             }
                         }
                         .padding(8)
-                        .padding(.bottom, !selectedTranscriptions.isEmpty ? 50 : 0)
+                        .padding(.bottom, 50)
                     }
                 }
 
-                if !selectedTranscriptions.isEmpty {
+                if !displayedTranscriptions.isEmpty {
                     selectionToolbar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -277,37 +277,58 @@ struct TranscriptionHistoryView: View {
 
     private var selectionToolbar: some View {
         HStack(spacing: 12) {
-            Button(action: { showAnalysisView = true }) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Analyze")
+            if selectedTranscriptions.isEmpty {
+                Button("Select All") {
+                    Task { await selectAllTranscriptions() }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            } else {
+                Button("Deselect All") {
+                    selectedTranscriptions.removeAll()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
 
-            Button(action: {
-                exportService.exportTranscriptionsToCSV(transcriptions: Array(selectedTranscriptions))
-            }) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Export")
+                Divider()
+                    .frame(height: 16)
 
-            Button(action: { showDeleteConfirmation = true }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.secondary)
+                Button(action: { showAnalysisView = true }) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Analyze")
+
+                Button(action: {
+                    exportService.exportTranscriptionsToCSV(transcriptions: Array(selectedTranscriptions))
+                }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Export")
+
+                Button(action: { showDeleteConfirmation = true }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Delete")
             }
-            .buttonStyle(.plain)
-            .help("Delete")
 
             Spacer()
 
-            Text("\(selectedTranscriptions.count) selected")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.secondary)
+            if !selectedTranscriptions.isEmpty {
+                Text("\(selectedTranscriptions.count) selected")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

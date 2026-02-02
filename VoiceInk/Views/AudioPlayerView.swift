@@ -248,8 +248,8 @@ struct WaveformBar: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        isPlayed ? Color.accentColor : Color.accentColor.opacity(0.3),
-                        isPlayed ? Color.accentColor.opacity(0.8) : Color.accentColor.opacity(0.2)
+                        isPlayed ? Color.primary : Color.primary.opacity(0.3),
+                        isPlayed ? Color.primary.opacity(0.8) : Color.primary.opacity(0.2)
                     ],
                     startPoint: .bottom,
                     endPoint: .top
@@ -272,7 +272,9 @@ struct AudioPlayerView: View {
     @State private var showRetranscribeSuccess = false
     @State private var showRetranscribeError = false
     @State private var errorMessage = ""
+    @State private var showPromptPopover = false
     @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var enhancementService: AIEnhancementService
     @Environment(\.modelContext) private var modelContext
     
     private var transcriptionService: AudioTranscriptionService {
@@ -301,12 +303,12 @@ struct AudioPlayerView: View {
                 HStack(spacing: 8) {
                     Button(action: showInFinder) {
                         Circle()
-                            .fill(Color.orange.opacity(0.1))
+                            .fill(Color.primary.opacity(0.06))
                             .frame(width: 32, height: 32)
                             .overlay(
                                 Image(systemName: "folder")
                                     .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(Color.orange)
+                                    .foregroundStyle(.primary)
                             )
                     }
                     .buttonStyle(.plain)
@@ -320,12 +322,12 @@ struct AudioPlayerView: View {
                         }
                     }) {
                         Circle()
-                            .fill(Color.accentColor.opacity(0.1))
+                            .fill(Color.primary.opacity(0.06))
                             .frame(width: 32, height: 32)
                             .overlay(
                                 Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
                                     .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(.primary)
                                     .contentTransition(.symbolEffect(.replace.downUp))
                             )
                     }
@@ -337,9 +339,29 @@ struct AudioPlayerView: View {
                         }
                     }
 
+                    Button(action: {
+                        showPromptPopover.toggle()
+                    }) {
+                        Circle()
+                            .fill(Color.primary.opacity(0.06))
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Image(systemName: enhancementService.activePrompt?.icon ?? "sparkles")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(enhancementService.isEnhancementEnabled ? 1.0 : 0.4)
+                    .help("Select enhancement prompt")
+                    .popover(isPresented: $showPromptPopover, arrowEdge: .bottom) {
+                        EnhancementPromptPopover()
+                            .environmentObject(enhancementService)
+                    }
+
                     Button(action: retranscribeAudio) {
                         Circle()
-                            .fill(Color.green.opacity(0.1))
+                            .fill(Color.primary.opacity(0.06))
                             .frame(width: 32, height: 32)
                             .overlay(
                                 Group {
@@ -353,7 +375,7 @@ struct AudioPlayerView: View {
                                     } else {
                                         Image(systemName: "arrow.clockwise")
                                             .font(.system(size: 14, weight: .semibold))
-                                            .foregroundStyle(Color.green)
+                                            .foregroundStyle(.primary)
                                     }
                                 }
                             )

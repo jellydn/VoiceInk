@@ -315,11 +315,7 @@ extension WhisperState {
             await whisperContext?.releaseResources()
             whisperContext = nil
             isModelLoaded = false
-            
-            if let recordedFile = recordedFile {
-                try? FileManager.default.removeItem(at: recordedFile)
-                self.recordedFile = nil
-            }
+            self.recordedFile = nil
         }
     }
     

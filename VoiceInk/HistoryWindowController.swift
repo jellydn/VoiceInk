@@ -33,6 +33,7 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
         let historyView = TranscriptionHistoryView()
             .modelContainer(modelContainer)
             .environmentObject(whisperState)
+            .environmentObject(whisperState.enhancementService!)
             .frame(minWidth: 1000, minHeight: 700)
 
         let hostingController = NSHostingController(rootView: historyView)
