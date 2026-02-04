@@ -63,7 +63,7 @@ enum AIProvider: String, CaseIterable {
         case .deepgram:
             return "whisper-1"
         case .soniox:
-            return "stt-async-v3"
+            return "stt-async-v4"
         case .ollama:
             return UserDefaults.standard.string(forKey: "ollamaSelectedModel") ?? "mistral"
         case .custom:
@@ -132,7 +132,7 @@ enum AIProvider: String, CaseIterable {
         case .deepgram:
             return ["whisper-1"]
         case .soniox:
-            return ["stt-async-v3"]
+            return ["stt-async-v4"]
         case .ollama:
             return []
         case .custom:

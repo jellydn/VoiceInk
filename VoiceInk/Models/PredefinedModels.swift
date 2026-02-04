@@ -10,6 +10,20 @@ import Foundation
                 let appleSupportedCodes = ["ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "yue", "zh"]
                 return allLanguages.filter { appleSupportedCodes.contains($0.key) }
             }
+            // For Soniox, return only the 60 languages supported by stt-async-v4
+            if provider == .soniox {
+                let sonioxSupportedCodes = [
+                    "af", "sq", "ar", "az", "eu", "be", "bn", "bs", "bg", "ca",
+                    "zh", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "gl",
+                    "de", "el", "gu", "he", "hi", "hu", "id", "it", "ja", "kn",
+                    "kk", "ko", "lv", "lt", "mk", "ms", "ml", "mr", "no", "fa",
+                    "pl", "pt", "pa", "ro", "ru", "sr", "sk", "sl", "es", "sw",
+                    "sv", "tl", "ta", "te", "th", "tr", "uk", "ur", "vi", "cy"
+                ]
+                var filtered = allLanguages.filter { sonioxSupportedCodes.contains($0.key) }
+                filtered["auto"] = "Auto-detect"
+                return filtered
+            }
             return allLanguages
         }
     }
@@ -297,12 +311,12 @@ import Foundation
         )
         ,
         CloudModel(
-            name: "stt-async-v3",
-            displayName: "Soniox (stt-async-v3)",
-            description: "Soniox asynchronous transcription model v3.",
+            name: "stt-async-v4",
+            displayName: "Soniox (stt-async-v4)",
+            description: "Soniox asynchronous transcription model v4 with human-parity accuracy across 60+ languages.",
             provider: .soniox,
             speed: 0.8,
-            accuracy: 0.96,
+            accuracy: 0.97,
             isMultilingual: true,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .soniox)
         )

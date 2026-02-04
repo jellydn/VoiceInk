@@ -50,13 +50,21 @@ class Recorder: NSObject, ObservableObject {
     }
 
     private func handleDeviceChange() async {
-        guard !isReconfiguring else { return }
-        guard recorder != nil else { return }
+        logger.notice("handleDeviceChange called")
+        guard !isReconfiguring else {
+            logger.notice("handleDeviceChange: skipped, already reconfiguring")
+            return
+        }
+        guard recorder != nil else {
+            logger.notice("handleDeviceChange: skipped, no active recorder")
+            return
+        }
 
         isReconfiguring = true
 
         try? await Task.sleep(nanoseconds: 200_000_000)
 
+        logger.notice("handleDeviceChange: posting .toggleMiniRecorder notification")
         await MainActor.run {
             NotificationCenter.default.post(name: .toggleMiniRecorder, object: nil)
         }
@@ -102,6 +110,7 @@ class Recorder: NSObject, ObservableObject {
     }
 
     func startRecording(toOutputFile url: URL) async throws {
+        logger.notice("startRecording called – deviceID=\(self.deviceManager.getCurrentDevice()), file=\(url.lastPathComponent)")
         deviceManager.isRecordingActive = true
         
         let currentDeviceID = deviceManager.getCurrentDevice()
@@ -128,6 +137,7 @@ class Recorder: NSObject, ObservableObject {
             recorder = coreAudioRecorder
 
             try coreAudioRecorder.startRecording(toOutputFile: url, deviceID: deviceID)
+            logger.notice("startRecording: CoreAudioRecorder started successfully")
 
             audioRestorationTask?.cancel()
             audioRestorationTask = nil
@@ -177,6 +187,7 @@ class Recorder: NSObject, ObservableObject {
     }
 
     func stopRecording() {
+        logger.notice("stopRecording called")
         audioLevelCheckTask?.cancel()
         audioMeterUpdateTask?.cancel()
         recorder?.stopRecording()

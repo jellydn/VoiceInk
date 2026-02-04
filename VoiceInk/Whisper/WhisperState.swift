@@ -142,6 +142,7 @@ class WhisperState: NSObject, ObservableObject {
     }
     
     func toggleRecord(powerModeId: UUID? = nil) async {
+        logger.notice("toggleRecord called – state=\(String(describing: self.recordingState))")
         if recordingState == .recording {
             await recorder.stopRecording()
             if let recordedFile {
@@ -174,6 +175,7 @@ class WhisperState: NSObject, ObservableObject {
                 }
             }
         } else {
+            logger.notice("toggleRecord: entering start-recording branch")
             guard currentTranscriptionModel != nil else {
                 await MainActor.run {
                     NotificationManager.shared.showNotification(
@@ -198,6 +200,7 @@ class WhisperState: NSObject, ObservableObject {
                             await MainActor.run {
                                 self.recordingState = .recording
                             }
+                            self.logger.notice("toggleRecord: recording started successfully, state=recording")
 
                             // Detect and apply Power Mode for current app/website in background
                             Task {
@@ -233,6 +236,7 @@ class WhisperState: NSObject, ObservableObject {
                         } catch {
                             self.logger.error("❌ Failed to start recording: \(error.localizedDescription)")
                             await NotificationManager.shared.showNotification(title: "Recording failed to start", type: .error)
+                            self.logger.notice("toggleRecord: calling dismissMiniRecorder from error handler")
                             await self.dismissMiniRecorder()
                             // Do not remove the file on a failed start, to preserve all recordings.
                             self.recordedFile = nil

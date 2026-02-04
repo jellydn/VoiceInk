@@ -42,6 +42,10 @@ final class LogExporter {
     }
 
     private func fetchLogs() async throws -> [String] {
+        let systemInfo = await MainActor.run {
+            SystemInfoService.shared.getSystemInfoString()
+        }
+
         let store = try OSLogStore(scope: .system)
         let predicate = NSPredicate(format: "subsystem == %@", subsystem)
 
@@ -54,6 +58,8 @@ final class LogExporter {
         logLines.append("Subsystem: \(subsystem)")
         logLines.append("Total Sessions: \(sessionStartDates.count)")
         logLines.append("================================")
+        logLines.append("")
+        logLines.append(systemInfo)
         logLines.append("")
 
         // Build session ranges with labels

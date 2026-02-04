@@ -333,10 +333,12 @@ extension WhisperState {
     // MARK: - Resource Management
     
     func cleanupModelResources() async {
+        logger.notice("cleanupModelResources: releasing model resources")
         await whisperContext?.releaseResources()
         whisperContext = nil
         isModelLoaded = false
         serviceRegistry.cleanup()
+        logger.notice("cleanupModelResources: completed")
     }
     
     // MARK: - Helper Methods

@@ -18,7 +18,7 @@ struct SettingsView: View {
     @AppStorage("autoUpdateCheck") private var autoUpdateCheck = true
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @AppStorage("restoreClipboardAfterPaste") private var restoreClipboardAfterPaste = true
-    @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 1.0
+    @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 2.0
     @State private var showResetOnboardingAlert = false
     @State private var currentShortcut = KeyboardShortcuts.getShortcut(for: .toggleMiniRecorder)
     @State private var isCustomCancelEnabled = false

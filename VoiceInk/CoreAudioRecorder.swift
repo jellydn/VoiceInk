@@ -103,7 +103,11 @@ final class CoreAudioRecorder {
 
     /// Stops the current recording
     func stopRecording() {
-        guard isRecording || audioUnit != nil else { return }
+        guard isRecording || audioUnit != nil else {
+            logger.notice("stopRecording: skipped, not recording and no audio unit")
+            return
+        }
+        logger.notice("stopRecording: stopping core audio recorder")
 
         // Stop and dispose AudioUnit
         if let unit = audioUnit {
