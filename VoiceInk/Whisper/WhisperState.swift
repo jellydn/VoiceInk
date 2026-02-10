@@ -98,7 +98,7 @@ class WhisperState: NSObject, ObservableObject {
     let modelsDirectory: URL
     let recordingsDirectory: URL
     let enhancementService: AIEnhancementService?
-    var licenseViewModel: LicenseViewModel
+    // Remove licenseViewModel for free fork version
     let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "WhisperState")
     var notchWindowManager: NotchWindowManager?
     var miniWindowManager: MiniWindowManager?
@@ -114,10 +114,10 @@ class WhisperState: NSObject, ObservableObject {
         
         self.modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
         self.recordingsDirectory = appSupportDirectory.appendingPathComponent("Recordings")
-        
+
         self.enhancementService = enhancementService
-        self.licenseViewModel = LicenseViewModel()
-        
+        // Remove licenseViewModel initialization for free fork version
+
         super.init()
         
         // Configure the session manager
