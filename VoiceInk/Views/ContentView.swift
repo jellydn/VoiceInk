@@ -61,12 +61,16 @@ struct ContentView: View {
     @AppStorage("powerModeUIFlag") private var powerModeUIFlag = false
     @State private var selectedView: ViewType? = .metrics
     let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-    @StateObject private var licenseViewModel = LicenseViewModel()
+    // Remove licenseViewModel for free fork version
 
     private var visibleViewTypes: [ViewType] {
         ViewType.allCases.filter { viewType in
             if viewType == .powerMode {
                 return powerModeUIFlag
+            }
+            // Hide license menu for free fork version
+            if viewType == .license {
+                return false
             }
             return true
         }
@@ -89,15 +93,7 @@ struct ContentView: View {
                         Text("VoiceInk")
                             .font(.system(size: 14, weight: .semibold))
 
-                        if case .licensed = licenseViewModel.licenseState {
-                            Text("PRO")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(4)
-                        }
+                        // Remove PRO badge for free fork version
 
                         Spacer()
                     }
