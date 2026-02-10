@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   beta-release:
@@ -16,8 +15,6 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@v4
         with:
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Get version info
@@ -25,18 +22,18 @@ jobs:
         run: |
           # Get current date
           DATE=$(date +%Y%m%d)
-          
+
           # Get commit short hash
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          
+
           # Create beta version string using date-based format
           BETA_VERSION="beta-${DATE}-${COMMIT_SHA}"
-          
+
           # Get commit message for changelog
           COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
-          
+
           echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Create changelog using heredoc
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "Auto beta release from main branch" >> $GITHUB_OUTPUT
@@ -47,16 +44,6 @@ jobs:
           echo "" >> $GITHUB_OUTPUT
           echo "This is an automated beta release from the main branch." >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create beta branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Create and checkout beta branch
-          git checkout -b beta-${{ steps.version.outputs.version }}
-          
-          git push origin beta-${{ steps.version.outputs.version }}
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -108,7 +95,7 @@ jobs:
           # Clean up temporary directory
           rm -rf dmg_temp
 
-      - name: Create GitHub Beta Release
+      - name: Create GitHub Beta Release with DMG
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
@@ -116,33 +103,5 @@ jobs:
           body: ${{ steps.version.outputs.changelog }}
           draft: false
           prerelease: true
-          target_commitish: beta-${{ steps.version.outputs.version }}
-
-      - name: Create Pull Request to main
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Merge beta release ${{ steps.version.outputs.version }} to main"
-          title: "Beta Release: ${{ steps.version.outputs.version }}"
-          body: |
-            ## Beta Release Ready
-            
-            This PR prepares the beta release `${{ steps.version.outputs.version }}` for merging into main.
-            
-            **Release Details:**
-            - Version: `${{ steps.version.outputs.version }}`
-            - Source Branch: `beta-${{ steps.version.outputs.version }}`
-            - Target Branch: `main`
-            
-            **Changes:**
-            - Automated build completed
-            - Beta release created with pre-release flag
-            
-            **Actions:**
-            - [ ] Review changes
-            - [ ] Run tests
-            - [ ] Merge to main for stable release
-            
-            After merging to main, you can create a stable release using the manual release workflow.
-          branch: main
-          delete-branch: true
+          files: VoiceInk-${{ steps.version.outputs.version }}.dmg
+          fail_on_unmatched_files: true
