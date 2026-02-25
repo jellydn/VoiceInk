@@ -53,7 +53,7 @@ class CloudTranscriptionService: TranscriptionService {
                 let apiKey = try requireAPIKey(forProvider: "Groq")
                 let prompt = transcriptionPrompt()
                 return try await OpenAITranscriptionClient.transcribe(
-                    baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+                    baseURL: URL(string: "https://api.groq.com/openai")!,
                     audioData: audioData,
                     fileName: fileName,
                     apiKey: apiKey,

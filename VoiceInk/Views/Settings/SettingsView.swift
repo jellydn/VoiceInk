@@ -233,6 +233,43 @@ struct SettingsView: View {
                 Text("Control how VoiceInk handles your transcription data and audio recordings.")
             }
 
+            // MARK: - Backup
+            Section {
+                LabeledContent("Export Settings") {
+                    Button("Export") {
+                        ImportExportService.shared.exportSettings(
+                            enhancementService: enhancementService,
+                            whisperPrompt: WhisperPrompt(),
+                            hotkeyManager: hotkeyManager,
+                            menuBarManager: menuBarManager,
+                            mediaController: mediaController,
+                            playbackController: playbackController,
+                            soundManager: soundManager,
+                            whisperState: whisperState
+                        )
+                    }
+                }
+
+                LabeledContent("Import Settings") {
+                    Button("Import") {
+                        ImportExportService.shared.importSettings(
+                            enhancementService: enhancementService,
+                            whisperPrompt: WhisperPrompt(),
+                            hotkeyManager: hotkeyManager,
+                            menuBarManager: menuBarManager,
+                            mediaController: mediaController,
+                            playbackController: playbackController,
+                            soundManager: soundManager,
+                            whisperState: whisperState
+                        )
+                    }
+                }
+            } header: {
+                Text("Backup")
+            } footer: {
+                Text("Export or import all your settings, prompts, power modes, dictionary, and custom models.")
+            }
+
             // MARK: - Diagnostics
             Section("Diagnostics") {
                 DiagnosticsSettingsView()

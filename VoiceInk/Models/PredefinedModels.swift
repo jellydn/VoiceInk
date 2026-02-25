@@ -122,7 +122,7 @@ import Foundation
             ramUsage: 0.8,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .parakeet)
         ),
-        
+
          // Local Models
          LocalModel(
              name: "ggml-tiny",
@@ -205,7 +205,7 @@ import Foundation
              accuracy: 0.95,
              ramUsage: 1.0
          ),
-         
+
                  // Cloud Models
         CloudModel(
             name: "whisper-large-v3-turbo",

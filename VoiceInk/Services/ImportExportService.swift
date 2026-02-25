@@ -296,7 +296,7 @@ class ImportExportService {
                         if let recType = general.recorderType {
                             whisperState.recorderType = recType
                         }
-                        
+
                         if let transcriptionCleanup = general.isTranscriptionCleanupEnabled {
                             UserDefaults.standard.set(transcriptionCleanup, forKey: self.keyIsTranscriptionCleanupEnabled)
                         }
