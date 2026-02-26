@@ -2,6 +2,17 @@
 
 All notable changes by jellydn to the VoiceInk project are documented in this file.
 
+## [2026] - Modifications
+
+### Major Changes
+
+#### Hard-disabled License/Trial Gating in Fork
+- **Commit: b8c70b3** - Force `LicenseViewModel` to always remain licensed in fork builds
+- **Commit: b8c70b3** - Make `canUseApp` always return `true`
+- **Commit: b8c70b3** - Short-circuit `validateLicense()` and keep app usable after `removeLicense()`
+
+These changes prevent trial-expired and paywall gating from reappearing after upstream rebases by enforcing free-fork behavior at the license state source.
+
 ## [2025] - Modifications
 
 ### Major Changes
