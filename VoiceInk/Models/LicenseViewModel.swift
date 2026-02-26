@@ -21,11 +21,8 @@ class LicenseViewModel: ObservableObject {
     private let licenseManager = LicenseManager.shared
 
     init() {
-        #if LOCAL_BUILD
+        // Fork behavior: disable licensing/trial gating globally.
         licenseState = .licensed
-        #else
-        loadLicenseState()
-        #endif
     }
 
     func startTrial() {
@@ -76,12 +73,7 @@ class LicenseViewModel: ObservableObject {
     }
     
     var canUseApp: Bool {
-        switch licenseState {
-        case .licensed, .trial:
-            return true
-        case .trialExpired:
-            return false
-        }
+        true
     }
     
     func openPurchaseLink() {
@@ -91,105 +83,24 @@ class LicenseViewModel: ObservableObject {
     }
     
     func validateLicense() async {
-        guard !licenseKey.isEmpty else {
-            validationMessage = "Please enter a license key"
-            return
-        }
-        
-        isValidating = true
-        
-        do {
-            // First, check if the license is valid and if it requires activation
-            let licenseCheck = try await polarService.checkLicenseRequiresActivation(licenseKey)
-            
-            if !licenseCheck.isValid {
-                validationMessage = "Invalid license key"
-                isValidating = false
-                return
-            }
-            
-            // Store the license key
-            licenseManager.licenseKey = licenseKey
-
-            // Handle based on whether activation is required
-            if licenseCheck.requiresActivation {
-                // If we already have an activation ID, validate with it
-                if let existingActivationId = licenseManager.activationId {
-                    let isValid = try await polarService.validateLicenseKeyWithActivation(licenseKey, activationId: existingActivationId)
-                    if isValid {
-                        // Existing activation is valid
-                        licenseState = .licensed
-                        validationMessage = "License activated successfully!"
-                        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-                        isValidating = false
-                        return
-                    }
-                }
-
-                // Need to create a new activation
-                let (newActivationId, limit) = try await polarService.activateLicenseKey(licenseKey)
-
-                // Store activation details
-                licenseManager.activationId = newActivationId
-                userDefaults.set(true, forKey: "VoiceInkLicenseRequiresActivation")
-                self.activationsLimit = limit
-                userDefaults.activationsLimit = limit
-
-            } else {
-                // This license doesn't require activation (unlimited devices)
-                licenseManager.activationId = nil
-                userDefaults.set(false, forKey: "VoiceInkLicenseRequiresActivation")
-                self.activationsLimit = licenseCheck.activationsLimit ?? 0
-                userDefaults.activationsLimit = licenseCheck.activationsLimit ?? 0
-
-                // Update the license state for unlimited license
-                licenseState = .licensed
-                validationMessage = "License validated successfully!"
-                NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-                isValidating = false
-                return
-            }
-            
-            // Update the license state for activated license
-            licenseState = .licensed
-            validationMessage = "License activated successfully!"
-            NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-            
-        } catch LicenseError.activationLimitReached(let details) {
-            validationMessage = "Activation limit reached: \(details)"
-        } catch LicenseError.activationNotRequired {
-            // This is actually a success case for unlimited licenses
-            licenseManager.licenseKey = licenseKey
-            licenseManager.activationId = nil
-            userDefaults.set(false, forKey: "VoiceInkLicenseRequiresActivation")
-            self.activationsLimit = 0
-            userDefaults.activationsLimit = 0
-
-            licenseState = .licensed
-            validationMessage = "License activated successfully!"
-            NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-        } catch {
-            validationMessage = error.localizedDescription
-        }
-        
-        isValidating = false
+        licenseState = .licensed
+        validationMessage = "License checks are disabled in this fork."
+        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
     }
     
     func removeLicense() {
-        // Remove all license data from Keychain
+        // Best-effort cleanup of persisted data while keeping app fully usable.
         licenseManager.removeAll()
 
-        // Reset UserDefaults flags
         userDefaults.set(false, forKey: "VoiceInkLicenseRequiresActivation")
-        userDefaults.set(false, forKey: "VoiceInkHasLaunchedBefore")  // Allow trial to restart
+        userDefaults.set(false, forKey: "VoiceInkHasLaunchedBefore")
         userDefaults.activationsLimit = 0
 
-        licenseState = .trial(daysRemaining: trialPeriodDays)  // Reset to trial state
+        licenseState = .licensed
         licenseKey = ""
         validationMessage = nil
         activationsLimit = 0
         NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-        loadLicenseState()
     }
 }
 
