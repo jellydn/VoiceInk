@@ -19,9 +19,10 @@ struct SettingsView: View {
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @AppStorage("restoreClipboardAfterPaste") private var restoreClipboardAfterPaste = true
     @AppStorage("clipboardRestoreDelay") private var clipboardRestoreDelay = 2.0
+    @AppStorage("useAppleScriptPaste") private var useAppleScriptPaste = false
     @State private var showResetOnboardingAlert = false
     @State private var currentShortcut = KeyboardShortcuts.getShortcut(for: .toggleMiniRecorder)
-    @State private var isCustomCancelEnabled = false
+    @State private var isCustomCancelEnabled = KeyboardShortcuts.getShortcut(for: .cancelRecorder) != nil
 
     // Expansion states - all collapsed by default
     @State private var isCustomCancelExpanded = false
@@ -174,6 +175,14 @@ struct SettingsView: View {
                         Text("5s").tag(5.0)
                     }
                 }
+
+                // AppleScript Paste
+                Toggle(isOn: $useAppleScriptPaste) {
+                    HStack(spacing: 4) {
+                        Text("Use AppleScript Paste")
+                        InfoTip("Enable this if pasting doesn't work with your keyboard layout (e.g. Neo2). Uses AppleScript instead of simulated key events.")
+                    }
+                }
             }
 
             // MARK: - Power Mode
@@ -278,9 +287,6 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Color(NSColor.controlBackgroundColor))
-        .onAppear {
-            isCustomCancelEnabled = KeyboardShortcuts.getShortcut(for: .cancelRecorder) != nil
-        }
         .alert("Reset Onboarding", isPresented: $showResetOnboardingAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
