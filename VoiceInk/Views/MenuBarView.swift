@@ -2,7 +2,10 @@ import SwiftUI
 import LaunchAtLogin
 
 struct MenuBarView: View {
-    @EnvironmentObject var whisperState: WhisperState
+    @EnvironmentObject var engine: VoiceInkEngine
+    @EnvironmentObject var recorderUIManager: RecorderUIManager
+    @EnvironmentObject var transcriptionModelManager: TranscriptionModelManager
+    @EnvironmentObject var whisperModelManager: WhisperModelManager
     @EnvironmentObject var hotkeyManager: HotkeyManager
     @EnvironmentObject var menuBarManager: MenuBarManager
     @EnvironmentObject var updaterViewModel: UpdaterViewModel
@@ -16,35 +19,35 @@ struct MenuBarView: View {
     var body: some View {
         VStack {
             Button("Toggle Recorder") {
-                whisperState.handleToggleMiniRecorder()
+                recorderUIManager.handleToggleMiniRecorder()
             }
 
             Divider()
 
             Menu {
-                ForEach(whisperState.usableModels, id: \.id) { model in
+                ForEach(transcriptionModelManager.usableModels, id: \.id) { model in
                     Button {
                         Task {
-                            await whisperState.setDefaultTranscriptionModel(model)
+                            transcriptionModelManager.setDefaultTranscriptionModel(model)
                         }
                     } label: {
                         HStack {
                             Text(model.displayName)
-                            if whisperState.currentTranscriptionModel?.id == model.id {
+                            if transcriptionModelManager.currentTranscriptionModel?.id == model.id {
                                 Image(systemName: "checkmark")
                             }
                         }
                     }
                 }
-                
+
                 Divider()
-                
+
                 Button("Manage Models") {
                     menuBarManager.openMainWindowAndNavigate(to: "AI Models")
                 }
             } label: {
                 HStack {
-                    Text("Transcription Model: \(whisperState.currentTranscriptionModel?.displayName ?? "None")")
+                    Text("Transcription Model: \(transcriptionModelManager.currentTranscriptionModel?.displayName ?? "None")")
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10))
                 }
@@ -130,7 +133,7 @@ struct MenuBarView: View {
                 }
             }
             
-            LanguageSelectionView(whisperState: whisperState, displayMode: .menuItem, whisperPrompt: whisperState.whisperPrompt)
+            LanguageSelectionView(transcriptionModelManager: transcriptionModelManager, displayMode: .menuItem, whisperPrompt: whisperModelManager.whisperPrompt)
 
             Menu {
                 ForEach(audioDeviceManager.availableDevices, id: \.id) { device in
@@ -190,11 +193,16 @@ struct MenuBarView: View {
             Divider()
 
             Button("Retry Last Transcription") {
-                LastTranscriptionService.retryLastTranscription(from: whisperState.modelContext, whisperState: whisperState)
+                LastTranscriptionService.retryLastTranscription(
+                    from: engine.modelContext,
+                    transcriptionModelManager: transcriptionModelManager,
+                    serviceRegistry: engine.serviceRegistry,
+                    enhancementService: enhancementService
+                )
             }
-            
+
             Button("Copy Last Transcription") {
-                LastTranscriptionService.copyLastTranscription(from: whisperState.modelContext)
+                LastTranscriptionService.copyLastTranscription(from: engine.modelContext)
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             

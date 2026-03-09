@@ -43,13 +43,14 @@ class HotkeyManager: ObservableObject {
     }
     
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "HotkeyManager")
-    private var whisperState: WhisperState
+    private var engine: VoiceInkEngine
+    private var recorderUIManager: RecorderUIManager
     private var miniRecorderShortcutManager: MiniRecorderShortcutManager
     private var powerModeShortcutManager: PowerModeShortcutManager
-    
+
     // MARK: - Helper Properties
     private var canProcessHotkeyAction: Bool {
-        whisperState.recordingState != .transcribing && whisperState.recordingState != .enhancing && whisperState.recordingState != .busy
+        engine.recordingState != .transcribing && engine.recordingState != .enhancing && engine.recordingState != .busy
     }
     
     // NSEvent monitoring for modifier keys
@@ -121,35 +122,41 @@ class HotkeyManager: ObservableObject {
         }
     }
     
-    init(whisperState: WhisperState) {
+    init(engine: VoiceInkEngine, recorderUIManager: RecorderUIManager) {
         self.selectedHotkey1 = HotkeyOption(rawValue: UserDefaults.standard.string(forKey: "selectedHotkey1") ?? "") ?? .rightCommand
         self.selectedHotkey2 = HotkeyOption(rawValue: UserDefaults.standard.string(forKey: "selectedHotkey2") ?? "") ?? .none
-        
+
         self.isMiddleClickToggleEnabled = UserDefaults.standard.bool(forKey: "isMiddleClickToggleEnabled")
         self.middleClickActivationDelay = UserDefaults.standard.integer(forKey: "middleClickActivationDelay")
-        
-        self.whisperState = whisperState
-        self.miniRecorderShortcutManager = MiniRecorderShortcutManager(whisperState: whisperState)
-        self.powerModeShortcutManager = PowerModeShortcutManager(whisperState: whisperState)
+
+        self.engine = engine
+        self.recorderUIManager = recorderUIManager
+        self.miniRecorderShortcutManager = MiniRecorderShortcutManager(engine: engine, recorderUIManager: recorderUIManager)
+        self.powerModeShortcutManager = PowerModeShortcutManager(engine: engine)
 
         KeyboardShortcuts.onKeyUp(for: .pasteLastTranscription) { [weak self] in
             guard let self = self else { return }
             Task { @MainActor in
-                LastTranscriptionService.pasteLastTranscription(from: self.whisperState.modelContext)
+                LastTranscriptionService.pasteLastTranscription(from: self.engine.modelContext)
             }
         }
 
         KeyboardShortcuts.onKeyUp(for: .pasteLastEnhancement) { [weak self] in
             guard let self = self else { return }
             Task { @MainActor in
-                LastTranscriptionService.pasteLastEnhancement(from: self.whisperState.modelContext)
+                LastTranscriptionService.pasteLastEnhancement(from: self.engine.modelContext)
             }
         }
 
         KeyboardShortcuts.onKeyUp(for: .retryLastTranscription) { [weak self] in
             guard let self = self else { return }
             Task { @MainActor in
-                LastTranscriptionService.retryLastTranscription(from: self.whisperState.modelContext, whisperState: self.whisperState)
+                LastTranscriptionService.retryLastTranscription(
+                    from: self.engine.modelContext,
+                    transcriptionModelManager: self.engine.transcriptionModelManager,
+                    serviceRegistry: self.engine.serviceRegistry,
+                    enhancementService: self.engine.enhancementService
+                )
             }
         }
 
@@ -157,8 +164,8 @@ class HotkeyManager: ObservableObject {
             guard let self = self else { return }
             Task { @MainActor in
                 HistoryWindowController.shared.showHistoryWindow(
-                    modelContainer: self.whisperState.modelContext.container,
-                    whisperState: self.whisperState
+                    modelContainer: self.engine.modelContext.container,
+                    engine: self.engine
                 )
             }
         }
@@ -214,7 +221,7 @@ class HotkeyManager: ObservableObject {
                     
                     Task { @MainActor in
                         guard self.canProcessHotkeyAction else { return }
-                        await self.whisperState.handleToggleMiniRecorder()
+                        await self.recorderUIManager.toggleMiniRecorder()
                     }
                 } catch {
                     // Cancelled
@@ -342,14 +349,14 @@ class HotkeyManager: ObservableObject {
                 isHandsFreeMode = false
                 guard canProcessHotkeyAction else { return }
                 logger.notice("processKeyPress: toggling mini recorder (hands-free toggle)")
-                await whisperState.handleToggleMiniRecorder()
+                await recorderUIManager.toggleMiniRecorder()
                 return
             }
 
-            if !whisperState.isMiniRecorderVisible {
+            if !recorderUIManager.isMiniRecorderVisible {
                 guard canProcessHotkeyAction else { return }
                 logger.notice("processKeyPress: toggling mini recorder (key down while not visible)")
-                await whisperState.handleToggleMiniRecorder()
+                await recorderUIManager.toggleMiniRecorder()
             }
         } else {
             if let startTime = keyPressEventTime {
@@ -360,7 +367,7 @@ class HotkeyManager: ObservableObject {
                 } else {
                     guard canProcessHotkeyAction else { return }
                     logger.notice("processKeyPress: toggling mini recorder (key up long press)")
-                    await whisperState.handleToggleMiniRecorder()
+                    await recorderUIManager.toggleMiniRecorder()
                 }
             }
 
@@ -383,14 +390,14 @@ class HotkeyManager: ObservableObject {
             isShortcutHandsFreeMode = false
             guard canProcessHotkeyAction else { return }
             logger.notice("handleCustomShortcutKeyDown: toggling mini recorder (hands-free toggle)")
-            await whisperState.handleToggleMiniRecorder()
+            await recorderUIManager.toggleMiniRecorder()
             return
         }
 
-        if !whisperState.isMiniRecorderVisible {
+        if !recorderUIManager.isMiniRecorderVisible {
             guard canProcessHotkeyAction else { return }
             logger.notice("handleCustomShortcutKeyDown: toggling mini recorder (key down while not visible)")
-            await whisperState.handleToggleMiniRecorder()
+            await recorderUIManager.toggleMiniRecorder()
         }
     }
 
@@ -406,7 +413,7 @@ class HotkeyManager: ObservableObject {
             } else {
                 guard canProcessHotkeyAction else { return }
                 logger.notice("handleCustomShortcutKeyUp: toggling mini recorder (key up long press)")
-                await whisperState.handleToggleMiniRecorder()
+                await recorderUIManager.toggleMiniRecorder()
             }
         }
 

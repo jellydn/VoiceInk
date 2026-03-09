@@ -5,7 +5,8 @@ import AVFoundation
 
 struct AudioTranscribeView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var engine: VoiceInkEngine
+    @EnvironmentObject private var enhancementService: AIEnhancementService
     @StateObject private var transcriptionManager = AudioTranscriptionManager.shared
     @State private var isDropTargeted = false
     @State private var selectedAudioURL: URL?
@@ -66,8 +67,7 @@ struct AudioTranscribeView: View {
                         .font(.headline)
                     
                     // AI Enhancement Settings
-                    if let enhancementService = whisperState.getEnhancementService() {
-                        VStack(spacing: 16) {
+                    VStack(spacing: 16) {
                             // AI Enhancement and Prompt in the same row
                             HStack(spacing: 16) {
                                 Toggle("AI Enhancement", isOn: $isEnhancementEnabled)
@@ -122,8 +122,7 @@ struct AudioTranscribeView: View {
                             isEnhancementEnabled = enhancementService.isEnhancementEnabled
                             selectedPromptId = enhancementService.selectedPromptId
                         }
-                    }
-                    
+
                     // Action Buttons in a row
                     HStack(spacing: 12) {
                         Button("Start Transcription") {
@@ -131,7 +130,7 @@ struct AudioTranscribeView: View {
                                 transcriptionManager.startProcessing(
                                     url: url,
                                     modelContext: modelContext,
-                                    whisperState: whisperState
+                                    engine: engine
                                 )
                             }
                         }

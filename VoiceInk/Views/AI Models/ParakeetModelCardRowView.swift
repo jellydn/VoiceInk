@@ -4,18 +4,19 @@ import AppKit
 
 struct ParakeetModelCardRowView: View {
     let model: ParakeetModel
-    @ObservedObject var whisperState: WhisperState
+    @ObservedObject var parakeetModelManager: ParakeetModelManager
+    @ObservedObject var transcriptionModelManager: TranscriptionModelManager
 
     var isCurrent: Bool {
-        whisperState.currentTranscriptionModel?.name == model.name
+        transcriptionModelManager.currentTranscriptionModel?.name == model.name
     }
 
     var isDownloaded: Bool {
-        whisperState.isParakeetModelDownloaded(model)
+        parakeetModelManager.isParakeetModelDownloaded(model)
     }
 
     var isDownloading: Bool {
-        whisperState.isParakeetModelDownloading(model)
+        parakeetModelManager.isParakeetModelDownloading(model)
     }
 
     var body: some View {
@@ -27,7 +28,7 @@ struct ParakeetModelCardRowView: View {
                 progressSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            
+
             actionSection
         }
         .padding(16)
@@ -39,7 +40,7 @@ struct ParakeetModelCardRowView: View {
             Text(model.displayName)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Color(.labelColor))
-            
+
             statusBadge
             Spacer()
         }
@@ -97,7 +98,7 @@ struct ParakeetModelCardRowView: View {
     private var progressSection: some View {
         Group {
             if isDownloading {
-                let progress = whisperState.downloadProgress[model.name] ?? 0.0
+                let progress = parakeetModelManager.downloadProgress[model.name] ?? 0.0
                 ProgressView(value: progress)
                     .progressViewStyle(LinearProgressViewStyle())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -115,7 +116,7 @@ struct ParakeetModelCardRowView: View {
             } else if isDownloaded {
                 Button(action: {
                     Task {
-                        await whisperState.setDefaultTranscriptionModel(model)
+                        transcriptionModelManager.setDefaultTranscriptionModel(model)
                     }
                 }) {
                     Text("Set as Default")
@@ -126,7 +127,7 @@ struct ParakeetModelCardRowView: View {
             } else {
                 Button(action: {
                     Task {
-                        await whisperState.downloadParakeetModel(model)
+                        await parakeetModelManager.downloadParakeetModel(model)
                     }
                 }) {
                     HStack(spacing: 4) {
@@ -142,17 +143,17 @@ struct ParakeetModelCardRowView: View {
                 .buttonStyle(.plain)
                 .disabled(isDownloading)
             }
-            
+
             if isDownloaded {
                 Menu {
                     Button(action: {
-                         whisperState.deleteParakeetModel(model)
+                        parakeetModelManager.deleteParakeetModel(model)
                     }) {
                         Label("Delete Model", systemImage: "trash")
                     }
-                    
+
                     Button {
-                        whisperState.showParakeetModelInFinder(model)
+                        parakeetModelManager.showParakeetModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }

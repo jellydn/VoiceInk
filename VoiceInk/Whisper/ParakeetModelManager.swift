@@ -1,19 +1,26 @@
 import Foundation
 import FluidAudio
 import AppKit
+import os
 
-extension WhisperState {
-    private func parakeetDefaultsKey(for modelName: String) -> String {
-        "ParakeetModelDownloaded_\(modelName)"
-    }
+@MainActor
+class ParakeetModelManager: ObservableObject {
+    @Published var parakeetDownloadStates: [String: Bool] = [:]
+    @Published var downloadProgress: [String: Double] = [:]
 
-    private func parakeetVersion(for modelName: String) -> AsrModelVersion {
-        modelName.lowercased().contains("v2") ? .v2 : .v3
-    }
+    /// Called when a model is deleted, passing the model name.
+    /// TranscriptionModelManager listens to clear currentTranscriptionModel if needed.
+    var onModelDeleted: ((String) -> Void)?
 
-    private func parakeetCacheDirectory(for version: AsrModelVersion) -> URL {
-        AsrModels.defaultCacheDirectory(for: version)
-    }
+    /// Called after a model is successfully downloaded so TranscriptionModelManager
+    /// can rebuild allAvailableModels.
+    var onModelsChanged: (() -> Void)?
+
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ParakeetModelManager")
+
+    init() {}
+
+    // MARK: - Query helpers
 
     func isParakeetModelDownloaded(named modelName: String) -> Bool {
         UserDefaults.standard.bool(forKey: parakeetDefaultsKey(for: modelName))
@@ -27,7 +34,8 @@ extension WhisperState {
         parakeetDownloadStates[model.name] ?? false
     }
 
-    @MainActor
+    // MARK: - Download
+
     func downloadParakeetModel(_ model: ParakeetModel) async {
         if isParakeetModelDownloaded(model) {
             return
@@ -49,31 +57,25 @@ extension WhisperState {
 
         do {
             _ = try await AsrModels.downloadAndLoad(version: version)
-
             _ = try await VadManager()
 
             UserDefaults.standard.set(true, forKey: parakeetDefaultsKey(for: modelName))
             downloadProgress[modelName] = 1.0
         } catch {
             UserDefaults.standard.set(false, forKey: parakeetDefaultsKey(for: modelName))
+            logger.error("❌ Parakeet download failed for \(modelName, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
 
         timer.invalidate()
         parakeetDownloadStates[modelName] = false
         downloadProgress[modelName] = nil
 
-        refreshAllAvailableModels()
+        onModelsChanged?()
     }
 
-    @MainActor
-    func deleteParakeetModel(_ model: ParakeetModel) {
-        if let currentModel = currentTranscriptionModel,
-           currentModel.provider == .parakeet,
-           currentModel.name == model.name {
-            currentTranscriptionModel = nil
-            UserDefaults.standard.removeObject(forKey: "CurrentTranscriptionModel")
-        }
+    // MARK: - Delete
 
+    func deleteParakeetModel(_ model: ParakeetModel) {
         let version = parakeetVersion(for: model.name)
         let cacheDirectory = parakeetCacheDirectory(for: version)
 
@@ -86,15 +88,31 @@ extension WhisperState {
             // Silently ignore removal errors
         }
 
-        refreshAllAvailableModels()
+        // Notify TranscriptionModelManager to clear currentTranscriptionModel if it matches
+        onModelDeleted?(model.name)
     }
 
-    @MainActor
+    // MARK: - Finder
+
     func showParakeetModelInFinder(_ model: ParakeetModel) {
         let cacheDirectory = parakeetCacheDirectory(for: parakeetVersion(for: model.name))
 
         if FileManager.default.fileExists(atPath: cacheDirectory.path) {
             NSWorkspace.shared.selectFile(cacheDirectory.path, inFileViewerRootedAtPath: "")
         }
+    }
+
+    // MARK: - Private helpers
+
+    private func parakeetDefaultsKey(for modelName: String) -> String {
+        "ParakeetModelDownloaded_\(modelName)"
+    }
+
+    private func parakeetVersion(for modelName: String) -> AsrModelVersion {
+        modelName.lowercased().contains("v2") ? .v2 : .v3
+    }
+
+    private func parakeetCacheDirectory(for version: AsrModelVersion) -> URL {
+        AsrModels.defaultCacheDirectory(for: version)
     }
 }

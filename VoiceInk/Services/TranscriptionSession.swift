@@ -33,7 +33,7 @@ final class FileTranscriptionSession: TranscriptionSession {
 
     func transcribe(audioURL: URL) async throws -> String {
         guard let model = model else {
-            throw WhisperStateError.transcriptionFailed
+            throw VoiceInkEngineError.transcriptionFailed
         }
         return try await service.transcribe(audioURL: audioURL, model: model)
     }
@@ -81,7 +81,7 @@ final class StreamingTranscriptionSession: TranscriptionSession {
             } catch {
                 let desc = error.localizedDescription
                 await MainActor.run {
-                    self.logger.error("Failed to start streaming, will fall back to batch: \(desc, privacy: .public)")
+                    self.logger.error("❌ Failed to start streaming, will fall back to batch: \(desc, privacy: .public)")
                     self.streamingFailed = true
                 }
             }
@@ -92,7 +92,7 @@ final class StreamingTranscriptionSession: TranscriptionSession {
 
     func transcribe(audioURL: URL) async throws -> String {
         guard let model = model else {
-            throw WhisperStateError.transcriptionFailed
+            throw VoiceInkEngineError.transcriptionFailed
         }
 
         if !streamingFailed {
@@ -101,7 +101,7 @@ final class StreamingTranscriptionSession: TranscriptionSession {
                 logger.notice("Streaming transcript received")
                 return text
             } catch {
-                logger.error("Streaming failed, falling back to batch: \(error.localizedDescription, privacy: .public)")
+                logger.error("❌ Streaming failed, falling back to batch: \(error.localizedDescription, privacy: .public)")
                 streamingService.cancel()
             }
         } else {

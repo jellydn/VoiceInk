@@ -3,14 +3,14 @@ import KeyboardShortcuts
 
 @MainActor
 class PowerModeShortcutManager {
-    private weak var whisperState: WhisperState?
+    private weak var engine: VoiceInkEngine?
     private var registeredPowerModeIds: Set<UUID> = []
 
-    init(whisperState: WhisperState) {
-        self.whisperState = whisperState
-        
+    init(engine: VoiceInkEngine) {
+        self.engine = engine
+
         setupPowerModeHotkeys()
-        
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(powerModeConfigurationsDidChange),
@@ -47,7 +47,7 @@ class PowerModeShortcutManager {
             guard !registeredPowerModeIds.contains(config.id) else { return }
 
             KeyboardShortcuts.onKeyUp(for: .powerMode(id: config.id)) { [weak self] in
-                guard let self = self else { return }
+                guard let self else { return }
                 Task { @MainActor in
                     await self.handlePowerModeHotkey(powerModeId: config.id)
                 }
@@ -58,21 +58,21 @@ class PowerModeShortcutManager {
     }
 
     private func handlePowerModeHotkey(powerModeId: UUID) async {
-        guard let whisperState = whisperState,
-              canProcessHotkeyAction(whisperState: whisperState) else { return }
+        guard let engine = engine,
+              canProcessHotkeyAction(engine: engine) else { return }
 
         guard let config = PowerModeManager.shared.getConfiguration(with: powerModeId),
               config.hotkeyShortcut != nil else {
             return
         }
 
-        await whisperState.toggleMiniRecorder(powerModeId: powerModeId)
+        await engine.recorderUIManager?.toggleMiniRecorder(powerModeId: powerModeId)
     }
-    
-    private func canProcessHotkeyAction(whisperState: WhisperState) -> Bool {
-        whisperState.recordingState != .transcribing && 
-        whisperState.recordingState != .enhancing && 
-        whisperState.recordingState != .busy
+
+    private func canProcessHotkeyAction(engine: VoiceInkEngine) -> Bool {
+        engine.recordingState != .transcribing &&
+        engine.recordingState != .enhancing &&
+        engine.recordingState != .busy
     }
 }
 

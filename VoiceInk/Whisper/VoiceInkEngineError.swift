@@ -1,16 +1,16 @@
 import Foundation
 
-enum WhisperStateError: Error, Identifiable {
+enum VoiceInkEngineError: Error, Identifiable {
     case modelLoadFailed
     case transcriptionFailed
     case whisperCoreFailed
     case unzipFailed
     case unknownError
-    
+
     var id: String { UUID().uuidString }
 }
 
-extension WhisperStateError: LocalizedError {
+extension VoiceInkEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .modelLoadFailed:
@@ -25,7 +25,7 @@ extension WhisperStateError: LocalizedError {
             return "An unknown error occurred."
         }
     }
-    
+
     var recoverySuggestion: String? {
         switch self {
         case .modelLoadFailed:
@@ -40,4 +40,7 @@ extension WhisperStateError: LocalizedError {
             return "Please restart the application. If the problem persists, contact support."
         }
     }
-} 
+}
+
+// Backward compatibility
+typealias WhisperStateError = VoiceInkEngineError

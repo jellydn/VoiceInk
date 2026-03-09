@@ -5,10 +5,12 @@ import LaunchAtLogin
 import AVFoundation
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var updaterViewModel: UpdaterViewModel
     @EnvironmentObject private var menuBarManager: MenuBarManager
     @EnvironmentObject private var hotkeyManager: HotkeyManager
-    @EnvironmentObject private var whisperState: WhisperState
+    @EnvironmentObject private var recorderUIManager: RecorderUIManager
+    @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @StateObject private var deviceManager = AudioDeviceManager.shared
     @ObservedObject private var soundManager = SoundManager.shared
@@ -190,7 +192,7 @@ struct SettingsView: View {
 
             // MARK: - Interface
             Section("Interface") {
-                Picker("Recorder Style", selection: $whisperState.recorderType) {
+                Picker("Recorder Style", selection: $recorderUIManager.recorderType) {
                     Text("Notch").tag("notch")
                     Text("Mini").tag("mini")
                 }
@@ -254,7 +256,8 @@ struct SettingsView: View {
                             mediaController: mediaController,
                             playbackController: playbackController,
                             soundManager: soundManager,
-                            whisperState: whisperState
+                            recorderUIManager: recorderUIManager,
+                            modelContext: modelContext
                         )
                     }
                 }
@@ -269,7 +272,9 @@ struct SettingsView: View {
                             mediaController: mediaController,
                             playbackController: playbackController,
                             soundManager: soundManager,
-                            whisperState: whisperState
+                            recorderUIManager: recorderUIManager,
+                            modelContext: modelContext,
+                            transcriptionModelManager: transcriptionModelManager
                         )
                     }
                 }

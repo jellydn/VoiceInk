@@ -45,21 +45,21 @@ class AudioTranscriptionManager: ObservableObject {
     
     private init() {}
     
-    func startProcessing(url: URL, modelContext: ModelContext, whisperState: WhisperState) {
+    func startProcessing(url: URL, modelContext: ModelContext, engine: VoiceInkEngine) {
         // Cancel any existing processing
         cancelProcessing()
-        
+
         isProcessing = true
         processingPhase = .loading
         errorMessage = nil
-        
+
         currentTask = Task {
             do {
-                guard let currentModel = whisperState.currentTranscriptionModel else {
+                guard let currentModel = engine.transcriptionModelManager.currentTranscriptionModel else {
                     throw TranscriptionError.noModelSelected
                 }
 
-                let serviceRegistry = TranscriptionServiceRegistry(whisperState: whisperState, modelsDirectory: whisperState.modelsDirectory)
+                let serviceRegistry = TranscriptionServiceRegistry(modelProvider: engine.whisperModelManager, modelsDirectory: engine.whisperModelManager.modelsDirectory, modelContext: modelContext)
                 defer {
                     serviceRegistry.cleanup()
                 }
@@ -99,7 +99,7 @@ class AudioTranscriptionManager: ObservableObject {
                 text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
                 
                 // Handle enhancement if enabled
-                if let enhancementService = whisperState.enhancementService,
+                if let enhancementService = engine.enhancementService,
                    enhancementService.isEnhancementEnabled,
                    enhancementService.isConfigured {
                     processingPhase = .enhancing
@@ -127,7 +127,7 @@ class AudioTranscriptionManager: ObservableObject {
                         NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
                         currentTranscription = transcription
                     } catch {
-                        logger.error("Enhancement failed: \(error.localizedDescription, privacy: .public)")
+                        logger.error("❌ Enhancement failed: \(error.localizedDescription, privacy: .public)")
                         let transcription = Transcription(
                             text: text,
                             duration: duration,
@@ -183,7 +183,7 @@ class AudioTranscriptionManager: ObservableObject {
     }
     
     private func handleError(_ error: Error) {
-        logger.error("Transcription error: \(error.localizedDescription, privacy: .public)")
+        logger.error("❌ Transcription error: \(error.localizedDescription, privacy: .public)")
         errorMessage = error.localizedDescription
         isProcessing = false
         processingPhase = .idle
