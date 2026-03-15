@@ -4,8 +4,9 @@ WHISPER_CPP_DIR := $(DEPS_DIR)/whisper.cpp
 FRAMEWORK_PATH := $(WHISPER_CPP_DIR)/build-apple/whisper.xcframework
 PROJECT_DIR := $(shell pwd)
 PROJECT_FILE := $(PROJECT_DIR)/VoiceInk.xcodeproj/project.pbxproj
+LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
 
-.PHONY: all clean whisper setup build release check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
+.PHONY: all clean whisper setup build release local check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
 
 # Default target
 all: check release
@@ -122,6 +123,38 @@ build: setup
 release: setup
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release CODE_SIGN_IDENTITY="" build
 
+# Build for local use without Apple Developer certificate
+local: check setup
+	@echo "Building VoiceInk for local use (no Apple Developer certificate required)..."
+	@rm -rf "$(LOCAL_DERIVED_DATA)"
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
+		-derivedDataPath "$(LOCAL_DERIVED_DATA)" \
+		-xcconfig LocalBuild.xcconfig \
+		CODE_SIGN_IDENTITY="-" \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGNING_ALLOWED=YES \
+		DEVELOPMENT_TEAM="" \
+		CODE_SIGN_ENTITLEMENTS=$(CURDIR)/VoiceInk/VoiceInk.local.entitlements \
+		SWIFT_ACTIVE_COMPILATION_CONDITIONS='$$(inherited) LOCAL_BUILD' \
+		build
+	@APP_PATH="$(LOCAL_DERIVED_DATA)/Build/Products/Debug/VoiceInk.app" && \
+	if [ -d "$$APP_PATH" ]; then \
+		echo "Copying VoiceInk.app to ~/Downloads..."; \
+		rm -rf "$$HOME/Downloads/VoiceInk.app"; \
+		ditto "$$APP_PATH" "$$HOME/Downloads/VoiceInk.app"; \
+		xattr -cr "$$HOME/Downloads/VoiceInk.app"; \
+		echo ""; \
+		echo "Build complete! App saved to: ~/Downloads/VoiceInk.app"; \
+		echo "Run with: open ~/Downloads/VoiceInk.app"; \
+		echo ""; \
+		echo "Limitations of local builds:"; \
+		echo "  - No iCloud dictionary sync"; \
+		echo "  - No automatic updates (pull new code and rebuild to update)"; \
+	else \
+		echo "Error: Could not find built VoiceInk.app at $$APP_PATH"; \
+		exit 1; \
+	fi
+
 # Run application (Debug configuration by default)
 run:
 	@echo "Looking for VoiceInk.app (Debug build)..."
@@ -161,6 +194,7 @@ help:
 	@echo "  setup              Build framework and update Xcode project paths automatically"
 	@echo "  build              Build the VoiceInk Xcode project (Debug)"
 	@echo "  release            Build the VoiceInk Xcode project (Release)"
+	@echo "  local              Build for local use without Apple Developer certificate"
 	@echo "  run                Launch the Debug build"
 	@echo "  run-release        Launch the Release build"
 	@echo "  dev                Build and run the Debug app (for development)"

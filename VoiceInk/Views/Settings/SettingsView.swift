@@ -37,8 +37,12 @@ struct SettingsView: View {
         Form {
             // MARK: - Shortcuts
             Section {
-                LabeledContent("Hotkey 1") {
+                LabeledContent("Shortcut 1") {
                     HStack(spacing: 8) {
+                        Spacer()
+                        if hotkeyManager.selectedHotkey1 != .none {
+                            hotkeyModePicker(binding: $hotkeyManager.hotkeyMode1)
+                        }
                         hotkeyPicker(binding: $hotkeyManager.selectedHotkey1)
                         if hotkeyManager.selectedHotkey1 == .custom {
                             KeyboardShortcuts.Recorder(for: .toggleMiniRecorder)
@@ -48,8 +52,10 @@ struct SettingsView: View {
                 }
 
                 if hotkeyManager.selectedHotkey2 != .none {
-                    LabeledContent("Hotkey 2") {
+                    LabeledContent("Shortcut 2") {
                         HStack(spacing: 8) {
+                            Spacer()
+                            hotkeyModePicker(binding: $hotkeyManager.hotkeyMode2)
                             hotkeyPicker(binding: $hotkeyManager.selectedHotkey2)
                             if hotkeyManager.selectedHotkey2 == .custom {
                                 KeyboardShortcuts.Recorder(for: .toggleMiniRecorder2)
@@ -67,14 +73,12 @@ struct SettingsView: View {
                 }
 
                 if hotkeyManager.selectedHotkey1 != .none && hotkeyManager.selectedHotkey2 == .none {
-                    Button("Add Second Hotkey") {
+                    Button("Add Second Shortcut") {
                         withAnimation { hotkeyManager.selectedHotkey2 = .rightOption }
                     }
                 }
             } header: {
                 Text("Shortcuts")
-            } footer: {
-                Text("Quick tap for hands-free recording, hold for push-to-talk.")
             }
 
             // MARK: - Additional Shortcuts
@@ -312,7 +316,18 @@ struct SettingsView: View {
             }
         }
         .labelsHidden()
-        .frame(width: 140)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private func hotkeyModePicker(binding: Binding<HotkeyManager.HotkeyMode>) -> some View {
+        Picker("", selection: binding) {
+            ForEach(HotkeyManager.HotkeyMode.allCases, id: \.self) { mode in
+                Text(mode.displayName).tag(mode)
+            }
+        }
+        .labelsHidden()
+        .fixedSize()
     }
 }
 

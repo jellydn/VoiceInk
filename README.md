@@ -66,13 +66,14 @@ As an open-source project, you can build VoiceInk yourself by following the inst
 
 ## Contributing
 
-We welcome contributions! However, please note that all contributions should align with the project's goals and vision. Before starting work on any feature or fix:
+This project is **not accepting pull requests** at this time. You're welcome to fork and modify VoiceInk for your own use.
 
-1. Read our [Contributing Guidelines](CONTRIBUTING.md)
-2. Open an issue to discuss your proposed changes
-3. Wait for maintainer feedback
+You can still contribute by:
+- Reporting bugs via [issues](https://github.com/Beingpax/VoiceInk/issues)
+- Suggesting features or enhancements
+- Improving documentation via issues
 
-For build instructions, see our [Building Guide](BUILDING.md).
+For more details, see our [Contributing Guidelines](CONTRIBUTING.md). For build instructions, see our [Building Guide](BUILDING.md).
 
 ## License
 
