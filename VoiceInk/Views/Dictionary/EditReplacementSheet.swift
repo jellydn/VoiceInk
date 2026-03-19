@@ -24,7 +24,7 @@ struct EditReplacementSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
+                .overlay(Divider().opacity(0.5), alignment: .bottom)
             formContent
         }
         .frame(width: 460, height: 560)

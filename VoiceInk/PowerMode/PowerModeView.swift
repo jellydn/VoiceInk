@@ -64,11 +64,11 @@ struct PowerModeView: View {
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @EnvironmentObject private var aiService: AIService
     @State private var configurationMode: ConfigurationMode?
-    @State private var navigationPath = NavigationPath()
-    @State private var isReorderMode = false
+    @State private var isPanelOpen = false
+    @State private var panelID = UUID()
+    @State private var isReorderPanelOpen = false
     
     var body: some View {
-        NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
                 // Header Section
                 VStack(spacing: 12) {
@@ -93,30 +93,28 @@ struct PowerModeView: View {
                         Spacer()
                         
                         HStack(spacing: 8) {
-                            if !isReorderMode {
-                                Button(action: {
-                                    configurationMode = .add
-                                    navigationPath.append(configurationMode!)
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 12, weight: .medium))
-                                        Text("Add Power Mode")
-                                            .font(.system(size: 13, weight: .medium))
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.accentColor)
-                                    .cornerRadius(6)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                            Button(action: { withAnimation { isReorderMode.toggle() } }) {
+                            Button(action: {
+                                openPanel(mode: .add)
+                            }) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: isReorderMode ? "checkmark" : "arrow.up.arrow.down")
+                                    Image(systemName: "plus")
                                         .font(.system(size: 12, weight: .medium))
-                                    Text(isReorderMode ? "Done" : "Reorder")
+                                    Text("Add Power Mode")
+                                        .font(.system(size: 13, weight: .medium))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor)
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            Button(action: { openReorderPanel() }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.arrow.down")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text("Reorder")
                                         .font(.system(size: 13, weight: .medium))
                                 }
                                 .foregroundColor(.primary)
@@ -141,64 +139,6 @@ struct PowerModeView: View {
                 
                 // Content Section
                 Group {
-                    if isReorderMode {
-                        VStack(spacing: 12) {
-                            List {
-                                ForEach(powerModeManager.configurations) { config in
-                                    HStack(spacing: 12) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(Color(NSColor.controlBackgroundColor))
-                                                .frame(width: 40, height: 40)
-                                            Text(config.emoji)
-                                                .font(.system(size: 20))
-                                        }
-
-                                        Text(config.name)
-                                            .font(.system(size: 15, weight: .semibold))
-
-                                        Spacer()
-
-                                        HStack(spacing: 6) {
-                                            if config.isDefault {
-                                                Text("Default")
-                                                    .font(.system(size: 11, weight: .medium))
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Capsule().fill(Color.accentColor))
-                                                    .foregroundColor(.white)
-                                            }
-                                            if !config.isEnabled {
-                                                Text("Disabled")
-                                                    .font(.system(size: 11, weight: .medium))
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(Capsule().fill(Color(NSColor.controlBackgroundColor)))
-                                                    .overlay(
-                                                        Capsule().stroke(Color(NSColor.separatorColor), lineWidth: 0.5)
-                                                    )
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 14)
-                                    .background(CardBackground(isSelected: false))
-                                    .listRowInsets(EdgeInsets())
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .padding(.vertical, 6)
-                                }
-                                .onMove(perform: powerModeManager.moveConfigurations)
-                            }
-                            .listStyle(.plain)
-                            .listRowSeparator(.hidden)
-                            .scrollContentBackground(.hidden)
-                            .background(Color(NSColor.controlBackgroundColor))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
-                    } else {
                         GeometryReader { geometry in
                             ScrollView {
                                 VStack(spacing: 0) {
@@ -234,8 +174,7 @@ struct PowerModeView: View {
                                             PowerModeConfigurationsGrid(
                                                 powerModeManager: powerModeManager,
                                                 onEditConfig: { config in
-                                                    configurationMode = .edit(config)
-                                                    navigationPath.append(configurationMode!)
+                                                    openPanel(mode: .edit(config))
                                                 }
                                             )
                                             .padding(.horizontal, 24)
@@ -248,16 +187,145 @@ struct PowerModeView: View {
                                 }
                             }
                         }
-                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
             }
             .background(Color(NSColor.controlBackgroundColor))
-            .navigationDestination(for: ConfigurationMode.self) { mode in
-                ConfigurationView(mode: mode, powerModeManager: powerModeManager)
+            .slidingPanel(isPresented: .init(
+                get: { isPanelOpen },
+                set: { if !$0 { closePanel() } }
+            ), width: 450) {
+                if let mode = configurationMode {
+                    ConfigurationView(mode: mode, powerModeManager: powerModeManager, onDismiss: closePanel)
+                        .id(panelID)
+                }
             }
+            .slidingPanel(isPresented: .init(
+                get: { isReorderPanelOpen },
+                set: { if !$0 { closeReorderPanel() } }
+            ), width: 450) {
+                ReorderPanelView(powerModeManager: powerModeManager, onDismiss: closeReorderPanel)
+            }
+    }
+
+    private func openPanel(mode: ConfigurationMode) {
+        configurationMode = mode
+        panelID = UUID()
+        withAnimation(.smooth(duration: 0.3)) {
+            isPanelOpen = true
         }
+    }
+
+    private func closePanel() {
+        withAnimation(.smooth(duration: 0.3)) {
+            isPanelOpen = false
+            configurationMode = nil
+        }
+    }
+
+    private func openReorderPanel() {
+        withAnimation(.smooth(duration: 0.3)) {
+            isReorderPanelOpen = true
+        }
+    }
+
+    private func closeReorderPanel() {
+        withAnimation(.smooth(duration: 0.3)) {
+            isReorderPanelOpen = false
+        }
+    }
+}
+
+struct ReorderPanelView: View {
+    @ObservedObject var powerModeManager: PowerModeManager
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 12) {
+                Text("Reorder Power Modes")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color(NSColor.windowBackgroundColor))
+            .overlay(Divider().opacity(0.5), alignment: .bottom)
+
+            // Reorder list
+            List {
+                ForEach(powerModeManager.configurations) { config in
+                    HStack(spacing: 12) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+
+                        ZStack {
+                            Circle()
+                                .fill(Color(NSColor.controlBackgroundColor))
+                                .frame(width: 36, height: 36)
+                            Text(config.emoji)
+                                .font(.system(size: 18))
+                        }
+
+                        Text(config.name)
+                            .font(.system(size: 14, weight: .medium))
+
+                        Spacer()
+
+                        HStack(spacing: 6) {
+                            if config.isDefault {
+                                Text("Default")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.accentColor))
+                                    .foregroundColor(.white)
+                            }
+                            if !config.isEnabled {
+                                Text("Disabled")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color(NSColor.controlBackgroundColor)))
+                                    .overlay(
+                                        Capsule().stroke(Color(NSColor.separatorColor), lineWidth: 0.5)
+                                    )
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(NSColor.controlBackgroundColor))
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+                .onMove(perform: powerModeManager.moveConfigurations)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .padding(.top, 8)
+        }
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 

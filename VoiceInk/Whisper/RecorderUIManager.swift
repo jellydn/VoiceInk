@@ -10,10 +10,10 @@ class RecorderUIManager: ObservableObject {
         didSet {
             if isMiniRecorderVisible {
                 if oldValue == "notch" {
-                    notchWindowManager?.hide()
+                    notchWindowManager?.destroyWindow()
                     notchWindowManager = nil
                 } else {
-                    miniWindowManager?.hide()
+                    miniWindowManager?.destroyWindow()
                     miniWindowManager = nil
                 }
                 Task { @MainActor in

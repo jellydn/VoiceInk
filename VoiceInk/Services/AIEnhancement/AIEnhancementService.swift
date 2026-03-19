@@ -83,7 +83,6 @@ class AIEnhancementService: ObservableObject {
         self.isEnhancementEnabled = UserDefaults.standard.bool(forKey: "isAIEnhancementEnabled")
         self.useClipboardContext = UserDefaults.standard.bool(forKey: "useClipboardContext")
         self.useScreenCaptureContext = UserDefaults.standard.bool(forKey: "useScreenCaptureContext")
-
         if let savedPromptsData = UserDefaults.standard.data(forKey: "customPrompts"),
            let decodedPrompts = try? JSONDecoder().decode([CustomPrompt].self, from: savedPromptsData) {
             self.customPrompts = decodedPrompts
@@ -248,6 +247,7 @@ class AIEnhancementService: ObservableObject {
                 }
                 let temperature = aiService.currentModel.lowercased().hasPrefix("gpt-5") ? 1.0 : 0.3
                 let reasoningEffort = ReasoningConfig.getReasoningParameter(for: aiService.currentModel)
+                let extraBody = ReasoningConfig.getExtraBodyParameters(for: aiService.currentModel)
                 result = try await OpenAILLMClient.chatCompletion(
                     baseURL: baseURL,
                     apiKey: aiService.apiKey,
@@ -256,6 +256,7 @@ class AIEnhancementService: ObservableObject {
                     systemPrompt: systemMessage,
                     temperature: temperature,
                     reasoningEffort: reasoningEffort,
+                    extraBody: extraBody,
                     timeout: baseTimeout
                 )
             }
