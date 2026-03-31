@@ -6,6 +6,7 @@ struct ParakeetModelCardRowView: View {
     let model: ParakeetModel
     @ObservedObject var parakeetModelManager: ParakeetModelManager
     @ObservedObject var transcriptionModelManager: TranscriptionModelManager
+    @AppStorage("parakeet-streaming-enabled") private var streamingEnabled = true
 
     var isCurrent: Bool {
         transcriptionModelManager.currentTranscriptionModel?.name == model.name
@@ -156,6 +157,12 @@ struct ParakeetModelCardRowView: View {
                         parakeetModelManager.showParakeetModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
+                    }
+
+                    Button {
+                        streamingEnabled.toggle()
+                    } label: {
+                        Label(streamingEnabled ? "Disable Live Streaming" : "Enable Live Streaming", systemImage: streamingEnabled ? "waveform.slash" : "waveform")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")

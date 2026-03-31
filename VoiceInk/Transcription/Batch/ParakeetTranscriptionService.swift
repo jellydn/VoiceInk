@@ -22,7 +22,7 @@ class ParakeetTranscriptionService: TranscriptionService {
         }
 
         // Clean up existing manager but preserve cachedModels for reuse
-        asrManager?.cleanup()
+        await asrManager?.cleanup()
         asrManager = nil
         vadManager = nil
         activeVersion = nil
@@ -120,7 +120,7 @@ class ParakeetTranscriptionService: TranscriptionService {
 
         let result = try await asrManager.transcribe(speechAudio)
 
-        return result.text
+        return TextNormalizer.shared.normalizeSentence(result.text)
     }
 
     private func readAudioSamples(from url: URL) throws -> [Float] {
@@ -144,8 +144,10 @@ class ParakeetTranscriptionService: TranscriptionService {
     }
 
     // Releases ASR/VAD resources but preserves cached models for reuse
-    func cleanup() {
-        asrManager?.cleanup()
+    func cleanup() async {
+        if let manager = asrManager {
+            await manager.cleanup()
+        }
         asrManager = nil
         vadManager = nil
         activeVersion = nil

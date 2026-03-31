@@ -156,12 +156,12 @@ struct APIKeyManagementView: View {
                     }
 
                 } else if aiService.selectedProvider == .custom {
-                    TextField("API Endpoint URL", text: $aiService.customBaseURL)
+                    TextField("API Endpoint URL", text: $aiService.customBaseURL, prompt: Text("e.g. https://api.openai.com/v1/chat/completions"))
                         .textFieldStyle(.roundedBorder)
 
                     Divider()
 
-                    TextField("Model Name", text: $aiService.customModel)
+                    TextField("Model Name", text: $aiService.customModel, prompt: Text("e.g. gemini-3.1-pro-preview, gpt-oss-120b"))
                         .textFieldStyle(.roundedBorder)
 
                     Divider()

@@ -42,16 +42,16 @@ struct TranscriptionResultView: View {
                         )
                     }
                     Spacer()
-                    AnimatedCopyButton(textToCopy: textForSelectedTab)
-                    AnimatedSaveButton(textToSave: textForSelectedTab)
+                    CopyIconButton(textToCopy: textForSelectedTab)
+                    SaveIconButton(textToSave: textForSelectedTab)
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 4)
             } else {
                 HStack {
                     Spacer()
-                    AnimatedCopyButton(textToCopy: textForSelectedTab)
-                    AnimatedSaveButton(textToSave: textForSelectedTab)
+                    CopyIconButton(textToCopy: textForSelectedTab)
+                    SaveIconButton(textToSave: textForSelectedTab)
                 }
             }
             

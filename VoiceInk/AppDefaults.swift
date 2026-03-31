@@ -44,6 +44,8 @@ enum AppDefaults {
             "isToggleEnhancementShortcutEnabled": true,
             "SkipShortEnhancement": true,
             "ShortEnhancementWordThreshold": 3,
+            "EnhancementTimeoutSeconds": 7,
+            "EnhancementRetryOnTimeout": true,
 
             // Model
             "PrewarmModelOnWake": true,

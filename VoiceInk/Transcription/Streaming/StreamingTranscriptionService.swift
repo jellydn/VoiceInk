@@ -49,10 +49,12 @@ class StreamingTranscriptionService {
     private var state: StreamingState = .idle
     private var committedSegments: [String] = []
     private let modelContext: ModelContext
+    private let parakeetService: ParakeetTranscriptionService?
     private var onPartialTranscript: ((String) -> Void)?
 
-    init(modelContext: ModelContext, onPartialTranscript: ((String) -> Void)? = nil) {
+    init(modelContext: ModelContext, parakeetService: ParakeetTranscriptionService? = nil, onPartialTranscript: ((String) -> Void)? = nil) {
         self.modelContext = modelContext
+        self.parakeetService = parakeetService
         self.onPartialTranscript = onPartialTranscript
     }
 
@@ -174,6 +176,11 @@ class StreamingTranscriptionService {
             return MistralStreamingProvider()
         case .soniox:
             return SonioxStreamingProvider(modelContext: modelContext)
+        case .parakeet:
+            guard let parakeetService else {
+                fatalError("ParakeetTranscriptionService required for Parakeet streaming. Ensure it is passed to StreamingTranscriptionService.")
+            }
+            return ParakeetStreamingProvider(parakeetService: parakeetService)
         default:
             fatalError("Unsupported streaming provider: \(model.provider). Check supportsStreaming() before calling startStreaming().")
         }

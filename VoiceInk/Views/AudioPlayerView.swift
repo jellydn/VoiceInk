@@ -73,10 +73,17 @@ class AudioPlayerManager: ObservableObject {
     @Published var duration: TimeInterval = 0
     @Published var waveformSamples: [Float] = []
     @Published var isLoadingWaveform = false
+    @Published var playbackRate: Float = {
+        let saved = UserDefaults.standard.float(forKey: "audioPlaybackRate")
+        return saved > 0 ? saved : 1.0
+    }() {
+        didSet { UserDefaults.standard.set(playbackRate, forKey: "audioPlaybackRate") }
+    }
     
     func loadAudio(from url: URL) {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.enableRate = true
             audioPlayer?.prepareToPlay()
             duration = audioPlayer?.duration ?? 0
             isLoadingWaveform = true
@@ -94,9 +101,19 @@ class AudioPlayerManager: ObservableObject {
     }
     
     func play() {
+        audioPlayer?.rate = playbackRate
         audioPlayer?.play()
         isPlaying = true
         startTimer()
+    }
+
+    func cyclePlaybackRate() {
+        switch playbackRate {
+        case 1.0:  playbackRate = 1.5
+        case 1.5:  playbackRate = 2.0
+        default:   playbackRate = 1.0
+        }
+        audioPlayer?.rate = playbackRate
     }
     
     func pause() {
@@ -313,6 +330,19 @@ struct AudioPlayerView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Show in Finder")
+
+                    Button(action: { playerManager.cyclePlaybackRate() }) {
+                        Circle()
+                            .fill(Color.primary.opacity(playerManager.playbackRate == 1.0 ? 0.06 : 0.14))
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Text(playerManager.playbackRate == 1.0 ? "1×" : playerManager.playbackRate == 1.5 ? "1.5×" : "2×")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Playback speed")
 
                     Button(action: {
                         if playerManager.isPlaying {

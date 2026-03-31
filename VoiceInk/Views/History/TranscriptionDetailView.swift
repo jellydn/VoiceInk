@@ -59,7 +59,6 @@ private struct MessageBubble: View {
     let label: String
     let text: String
     let isEnhanced: Bool
-    @State private var justCopied = false
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -94,19 +93,8 @@ private struct MessageBubble: View {
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    Button(action: {
-                        copyToClipboard(text)
-                    }) {
-                        Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 12))
-                            .foregroundColor(justCopied ? .green : .secondary)
-                            .frame(width: 28, height: 28)
-                            .background(Color(NSColor.controlBackgroundColor).opacity(0.9))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Copy to clipboard")
-                    .padding(8)
+                    CopyIconButton(textToCopy: text)
+                        .padding(8)
                 }
             }
 
@@ -114,17 +102,5 @@ private struct MessageBubble: View {
         }
     }
 
-    private func copyToClipboard(_ text: String) {
-        let _ = ClipboardManager.copyToClipboard(text)
 
-        withAnimation {
-            justCopied = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation {
-                justCopied = false
-            }
-        }
-    }
 }

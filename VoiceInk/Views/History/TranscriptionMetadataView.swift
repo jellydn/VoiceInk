@@ -2,7 +2,6 @@ import SwiftUI
 
 struct TranscriptionMetadataView: View {
     let transcription: Transcription
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -89,8 +88,12 @@ struct TranscriptionMetadataView: View {
 
                 if transcription.aiRequestSystemMessage != nil || transcription.aiRequestUserMessage != nil {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("AI Request")
-                            .font(.system(size: 14, weight: .semibold))
+                        HStack {
+                            Text("AI Request")
+                                .font(.system(size: 14, weight: .semibold))
+                            Spacer()
+                            CopyIconButton(textToCopy: fullRequestText)
+                        }
 
                         ScrollView {
                             VStack(alignment: .leading, spacing: 12) {
@@ -133,6 +136,17 @@ struct TranscriptionMetadataView: View {
             .padding(12)
         }
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private var fullRequestText: String {
+        var parts: [String] = []
+        if let sys = transcription.aiRequestSystemMessage, !sys.isEmpty {
+            parts.append("System Prompt:\n\(sys)")
+        }
+        if let user = transcription.aiRequestUserMessage, !user.isEmpty {
+            parts.append("User Message:\n\(user)")
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     private func metadataRow(icon: String, label: String, value: String) -> some View {

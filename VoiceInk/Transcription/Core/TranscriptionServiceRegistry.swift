@@ -49,6 +49,7 @@ class TranscriptionServiceRegistry {
         if supportsStreaming(model: model) {
             let streamingService = StreamingTranscriptionService(
                 modelContext: modelContext,
+                parakeetService: model.provider == .parakeet ? parakeetTranscriptionService : nil,
                 onPartialTranscript: onPartialTranscript
             )
             let fallback = service(for: model.provider)
@@ -82,12 +83,14 @@ class TranscriptionServiceRegistry {
             return model.name == "voxtral-mini-transcribe-realtime-2602"
         case .soniox:
             return model.name == "stt-rt-v4"
+        case .parakeet:
+            return UserDefaults.standard.object(forKey: "parakeet-streaming-enabled") as? Bool ?? true
         default:
             return false
         }
     }
 
-    func cleanup() {
-        parakeetTranscriptionService.cleanup()
+    func cleanup() async {
+        await parakeetTranscriptionService.cleanup()
     }
 }
