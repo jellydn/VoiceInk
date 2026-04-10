@@ -193,7 +193,7 @@ class PowerModeSessionManager {
                     print("Power Mode: Failed to load local model '\(localModel.name)': \(error)")
                 }
             }
-        case .parakeet:
+        case .fluidAudio:
             await stateProvider.cleanupModelResources()
         default:
             await stateProvider.cleanupModelResources()

@@ -13,7 +13,7 @@ enum ModelFilter: String, CaseIterable, Identifiable {
 
 struct ModelManagementView: View {
     @EnvironmentObject private var whisperModelManager: WhisperModelManager
-    @EnvironmentObject private var parakeetModelManager: ParakeetModelManager
+    @EnvironmentObject private var fluidAudioModelManager: FluidAudioModelManager
     @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
     @State private var customModelToEdit: CustomCloudModel?
     @StateObject private var aiService = AIService()
@@ -173,7 +173,7 @@ struct ModelManagementView: View {
 
                         ModelCardRowView(
                             model: model,
-                            parakeetModelManager: parakeetModelManager,
+                            fluidAudioModelManager: fluidAudioModelManager,
                             transcriptionModelManager: transcriptionModelManager,
                             isDownloaded: whisperModelManager.availableModels.contains { $0.name == model.name },
                             isCurrent: transcriptionModelManager.currentTranscriptionModel?.name == model.name,
@@ -241,7 +241,15 @@ struct ModelManagementView: View {
                     }
                     
                     if selectedFilter == .custom {
-                        // Add Custom Model Card at the bottom
+                        HStack(spacing: 6) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 12))
+                            Text("Only OpenAI-compatible transcription APIs are supported.")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 4)
+
                         AddCustomModelCardView(
                             customModelManager: customModelManager,
                             editingModel: customModelToEdit
@@ -308,9 +316,9 @@ struct ModelManagementView: View {
                 return index1 < index2
             }
         case .local:
-            return transcriptionModelManager.allAvailableModels.filter { $0.provider == .local || $0.provider == .nativeApple || $0.provider == .parakeet }
+            return transcriptionModelManager.allAvailableModels.filter { $0.provider == .local || $0.provider == .nativeApple || $0.provider == .fluidAudio }
         case .cloud:
-            let cloudProviders: [ModelProvider] = [.groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox]
+            let cloudProviders: [ModelProvider] = [.groq, .elevenLabs, .deepgram, .mistral, .gemini, .soniox, .speechmatics]
             return transcriptionModelManager.allAvailableModels.filter { cloudProviders.contains($0.provider) }
         case .custom:
             return transcriptionModelManager.allAvailableModels.filter { $0.provider == .custom }

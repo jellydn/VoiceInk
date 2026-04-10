@@ -16,7 +16,7 @@
       "location" : "https://github.com/FluidInference/FluidAudio",
       "state" : {
         "branch" : "main",
-        "revision" : "7eb11e2bb6de3015a10208abac3a4dae0c42a4f1"
+        "revision" : "04747b3e77c824917c2b422a7210ab9de9d3b029"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/Beingpax/LLMkit.git",
       "state" : {
         "branch" : "main",
-        "revision" : "1fde8fe8d63e292f24a23093030b7f6d09c5bdca"
+        "revision" : "c4ed80007e15e53a89e9bc464264d1194b8c0e3c"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/ejbills/mediaremote-adapter",
       "state" : {
         "branch" : "master",
-        "revision" : "3529aa25023082a2ceadebcd2c9c4a9430ee96b9"
+        "revision" : "b8ce5d15898299d4d314413a3c4e3a1f3f678fa2"
       }
     },
     {

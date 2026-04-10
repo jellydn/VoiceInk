@@ -51,7 +51,7 @@ struct ConfigurationView: View {
         guard let selectedModelName = effectiveModelName,
               let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == selectedModelName })
         else { return false }
-        return model.provider == .parakeet || model.provider == .gemini
+        return model.provider == .fluidAudio || model.provider == .gemini
     }
 
     init(mode: ConfigurationMode, powerModeManager: PowerModeManager, onDismiss: @escaping () -> Void) {
@@ -278,7 +278,7 @@ struct ConfigurationView: View {
                             // Auto-set language to "auto" for models that only support auto-detection
                             if let modelName = newModelName ?? transcriptionModelManager.currentTranscriptionModel?.name,
                                let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }),
-                               model.provider == .parakeet || model.provider == .gemini {
+                               model.provider == .fluidAudio || model.provider == .gemini {
                                 selectedLanguage = "auto"
                             }
                         }

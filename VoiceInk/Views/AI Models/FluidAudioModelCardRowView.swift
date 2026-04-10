@@ -2,9 +2,9 @@ import SwiftUI
 import Combine
 import AppKit
 
-struct ParakeetModelCardRowView: View {
-    let model: ParakeetModel
-    @ObservedObject var parakeetModelManager: ParakeetModelManager
+struct FluidAudioModelCardRowView: View {
+    let model: FluidAudioModel
+    @ObservedObject var fluidAudioModelManager: FluidAudioModelManager
     @ObservedObject var transcriptionModelManager: TranscriptionModelManager
     @AppStorage("parakeet-streaming-enabled") private var streamingEnabled = true
 
@@ -13,11 +13,11 @@ struct ParakeetModelCardRowView: View {
     }
 
     var isDownloaded: Bool {
-        parakeetModelManager.isParakeetModelDownloaded(model)
+        fluidAudioModelManager.isFluidAudioModelDownloaded(model)
     }
 
     var isDownloading: Bool {
-        parakeetModelManager.isParakeetModelDownloading(model)
+        fluidAudioModelManager.isFluidAudioModelDownloading(model)
     }
 
     var body: some View {
@@ -99,7 +99,7 @@ struct ParakeetModelCardRowView: View {
     private var progressSection: some View {
         Group {
             if isDownloading {
-                let progress = parakeetModelManager.downloadProgress[model.name] ?? 0.0
+                let progress = fluidAudioModelManager.downloadProgress[model.name] ?? 0.0
                 ProgressView(value: progress)
                     .progressViewStyle(LinearProgressViewStyle())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,7 +128,7 @@ struct ParakeetModelCardRowView: View {
             } else {
                 Button(action: {
                     Task {
-                        await parakeetModelManager.downloadParakeetModel(model)
+                        await fluidAudioModelManager.downloadFluidAudioModel(model)
                     }
                 }) {
                     HStack(spacing: 4) {
@@ -148,13 +148,13 @@ struct ParakeetModelCardRowView: View {
             if isDownloaded {
                 Menu {
                     Button(action: {
-                        parakeetModelManager.deleteParakeetModel(model)
+                        fluidAudioModelManager.deleteFluidAudioModel(model)
                     }) {
                         Label("Delete Model", systemImage: "trash")
                     }
 
                     Button {
-                        parakeetModelManager.showParakeetModelInFinder(model)
+                        fluidAudioModelManager.showFluidAudioModelInFinder(model)
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
                     }

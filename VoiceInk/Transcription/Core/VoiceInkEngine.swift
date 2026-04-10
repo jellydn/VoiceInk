@@ -191,8 +191,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                             await self.logger.error("❌ Model loading failed: \(error.localizedDescription, privacy: .public)")
                                         }
                                     }
-                                } else if let parakeetModel = await self.transcriptionModelManager.currentTranscriptionModel as? ParakeetModel {
-                                    try? await self.serviceRegistry.parakeetTranscriptionService.loadModel(for: parakeetModel)
+                                } else if let fluidAudioModel = await self.transcriptionModelManager.currentTranscriptionModel as? FluidAudioModel {
+                                    try? await self.serviceRegistry.fluidAudioTranscriptionService.loadModel(for: fluidAudioModel)
                                 }
 
                                 if let enhancementService = await self.enhancementService {

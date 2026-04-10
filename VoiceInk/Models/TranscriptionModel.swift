@@ -3,13 +3,14 @@ import Foundation
 // Enum to differentiate between model providers
 enum ModelProvider: String, Codable, Hashable, CaseIterable {
     case local = "Local"
-    case parakeet = "Parakeet"
+    case fluidAudio = "Parakeet"
     case groq = "Groq"
     case elevenLabs = "ElevenLabs"
     case deepgram = "Deepgram"
     case mistral = "Mistral"
     case gemini = "Gemini"
     case soniox = "Soniox"
+    case speechmatics = "Speechmatics"
     case custom = "Custom"
     case nativeApple = "Native Apple"
     // Future providers can be added here
@@ -50,13 +51,13 @@ struct NativeAppleModel: TranscriptionModel {
     let supportedLanguages: [String: String]
 }
 
-// A new struct for Parakeet models
-struct ParakeetModel: TranscriptionModel {
+// A new struct for FluidAudio models
+struct FluidAudioModel: TranscriptionModel {
     let id = UUID()
     let name: String
     let displayName: String
     let description: String
-    let provider: ModelProvider = .parakeet
+    let provider: ModelProvider = .fluidAudio
     let size: String
     let speed: Double
     let accuracy: Double

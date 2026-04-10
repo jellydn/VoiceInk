@@ -4,40 +4,45 @@ import AppKit
 import os
 
 @MainActor
-class ParakeetModelManager: ObservableObject {
+class FluidAudioModelManager: ObservableObject {
     @Published var parakeetDownloadStates: [String: Bool] = [:]
     @Published var downloadProgress: [String: Double] = [:]
 
-    /// Called when a model is deleted, passing the model name.
-    /// TranscriptionModelManager listens to clear currentTranscriptionModel if needed.
     var onModelDeleted: ((String) -> Void)?
-
-    /// Called after a model is successfully downloaded so TranscriptionModelManager
-    /// can rebuild allAvailableModels.
     var onModelsChanged: (() -> Void)?
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ParakeetModelManager")
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "FluidAudioModelManager")
+
+    // Add new Fluid Audio models here when support is added.
+    static let modelVersionMap: [String: AsrModelVersion] = [
+        "parakeet-tdt-0.6b-v2": .v2,
+        "parakeet-tdt-0.6b-v3": .v3,
+    ]
+
+    nonisolated static func asrVersion(for modelName: String) -> AsrModelVersion {
+        modelVersionMap[modelName] ?? .v3
+    }
 
     init() {}
 
     // MARK: - Query helpers
 
-    func isParakeetModelDownloaded(named modelName: String) -> Bool {
+    func isFluidAudioModelDownloaded(named modelName: String) -> Bool {
         UserDefaults.standard.bool(forKey: parakeetDefaultsKey(for: modelName))
     }
 
-    func isParakeetModelDownloaded(_ model: ParakeetModel) -> Bool {
-        isParakeetModelDownloaded(named: model.name)
+    func isFluidAudioModelDownloaded(_ model: FluidAudioModel) -> Bool {
+        isFluidAudioModelDownloaded(named: model.name)
     }
 
-    func isParakeetModelDownloading(_ model: ParakeetModel) -> Bool {
+    func isFluidAudioModelDownloading(_ model: FluidAudioModel) -> Bool {
         parakeetDownloadStates[model.name] ?? false
     }
 
     // MARK: - Download
 
-    func downloadParakeetModel(_ model: ParakeetModel) async {
-        if isParakeetModelDownloaded(model) {
+    func downloadFluidAudioModel(_ model: FluidAudioModel) async {
+        if isFluidAudioModelDownloaded(model) {
             return
         }
 
@@ -53,7 +58,7 @@ class ParakeetModelManager: ObservableObject {
             }
         }
 
-        let version = parakeetVersion(for: modelName)
+        let version = FluidAudioModelManager.asrVersion(for: modelName)
 
         do {
             _ = try await AsrModels.downloadAndLoad(version: version)
@@ -63,7 +68,7 @@ class ParakeetModelManager: ObservableObject {
             downloadProgress[modelName] = 1.0
         } catch {
             UserDefaults.standard.set(false, forKey: parakeetDefaultsKey(for: modelName))
-            logger.error("❌ Parakeet download failed for \(modelName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("❌ FluidAudio download failed for \(modelName, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
 
         timer.invalidate()
@@ -75,8 +80,8 @@ class ParakeetModelManager: ObservableObject {
 
     // MARK: - Delete
 
-    func deleteParakeetModel(_ model: ParakeetModel) {
-        let version = parakeetVersion(for: model.name)
+    func deleteFluidAudioModel(_ model: FluidAudioModel) {
+        let version = FluidAudioModelManager.asrVersion(for: model.name)
         let cacheDirectory = parakeetCacheDirectory(for: version)
 
         do {
@@ -94,8 +99,8 @@ class ParakeetModelManager: ObservableObject {
 
     // MARK: - Finder
 
-    func showParakeetModelInFinder(_ model: ParakeetModel) {
-        let cacheDirectory = parakeetCacheDirectory(for: parakeetVersion(for: model.name))
+    func showFluidAudioModelInFinder(_ model: FluidAudioModel) {
+        let cacheDirectory = parakeetCacheDirectory(for: FluidAudioModelManager.asrVersion(for: model.name))
 
         if FileManager.default.fileExists(atPath: cacheDirectory.path) {
             NSWorkspace.shared.selectFile(cacheDirectory.path, inFileViewerRootedAtPath: "")
@@ -106,10 +111,6 @@ class ParakeetModelManager: ObservableObject {
 
     private func parakeetDefaultsKey(for modelName: String) -> String {
         "ParakeetModelDownloaded_\(modelName)"
-    }
-
-    private func parakeetVersion(for modelName: String) -> AsrModelVersion {
-        modelName.lowercased().contains("v2") ? .v2 : .v3
     }
 
     private func parakeetCacheDirectory(for version: AsrModelVersion) -> URL {

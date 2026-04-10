@@ -16,7 +16,7 @@ class TranscriptionServiceRegistry {
     )
     private(set) lazy var cloudTranscriptionService = CloudTranscriptionService(modelContext: modelContext)
     private(set) lazy var nativeAppleTranscriptionService = NativeAppleTranscriptionService()
-    private(set) lazy var parakeetTranscriptionService = ParakeetTranscriptionService()
+    private(set) lazy var fluidAudioTranscriptionService = FluidAudioTranscriptionService()
 
     init(modelProvider: any LocalModelProvider, modelsDirectory: URL, modelContext: ModelContext) {
         self.modelProvider = modelProvider
@@ -28,8 +28,8 @@ class TranscriptionServiceRegistry {
         switch provider {
         case .local:
             return localTranscriptionService
-        case .parakeet:
-            return parakeetTranscriptionService
+        case .fluidAudio:
+            return fluidAudioTranscriptionService
         case .nativeApple:
             return nativeAppleTranscriptionService
         default:
@@ -49,7 +49,7 @@ class TranscriptionServiceRegistry {
         if supportsStreaming(model: model) {
             let streamingService = StreamingTranscriptionService(
                 modelContext: modelContext,
-                parakeetService: model.provider == .parakeet ? parakeetTranscriptionService : nil,
+                fluidAudioService: model.provider == .fluidAudio ? fluidAudioTranscriptionService : nil,
                 onPartialTranscript: onPartialTranscript
             )
             let fallback = service(for: model.provider)
@@ -83,7 +83,9 @@ class TranscriptionServiceRegistry {
             return model.name == "voxtral-mini-transcribe-realtime-2602"
         case .soniox:
             return model.name == "stt-rt-v4"
-        case .parakeet:
+        case .speechmatics:
+            return model.name == "speechmatics-enhanced"
+        case .fluidAudio:
             return UserDefaults.standard.object(forKey: "parakeet-streaming-enabled") as? Bool ?? true
         default:
             return false
@@ -91,6 +93,6 @@ class TranscriptionServiceRegistry {
     }
 
     func cleanup() async {
-        await parakeetTranscriptionService.cleanup()
+        await fluidAudioTranscriptionService.cleanup()
     }
 }

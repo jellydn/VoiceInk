@@ -49,12 +49,12 @@ class StreamingTranscriptionService {
     private var state: StreamingState = .idle
     private var committedSegments: [String] = []
     private let modelContext: ModelContext
-    private let parakeetService: ParakeetTranscriptionService?
+    private let fluidAudioService: FluidAudioTranscriptionService?
     private var onPartialTranscript: ((String) -> Void)?
 
-    init(modelContext: ModelContext, parakeetService: ParakeetTranscriptionService? = nil, onPartialTranscript: ((String) -> Void)? = nil) {
+    init(modelContext: ModelContext, fluidAudioService: FluidAudioTranscriptionService? = nil, onPartialTranscript: ((String) -> Void)? = nil) {
         self.modelContext = modelContext
-        self.parakeetService = parakeetService
+        self.fluidAudioService = fluidAudioService
         self.onPartialTranscript = onPartialTranscript
     }
 
@@ -176,11 +176,13 @@ class StreamingTranscriptionService {
             return MistralStreamingProvider()
         case .soniox:
             return SonioxStreamingProvider(modelContext: modelContext)
-        case .parakeet:
-            guard let parakeetService else {
-                fatalError("ParakeetTranscriptionService required for Parakeet streaming. Ensure it is passed to StreamingTranscriptionService.")
+        case .speechmatics:
+            return SpeechmaticsStreamingProvider(modelContext: modelContext)
+        case .fluidAudio:
+            guard let fluidAudioService else {
+                fatalError("FluidAudioTranscriptionService required for FluidAudio streaming. Ensure it is passed to StreamingTranscriptionService.")
             }
-            return ParakeetStreamingProvider(parakeetService: parakeetService)
+            return FluidAudioStreamingProvider(fluidAudioService: fluidAudioService)
         default:
             fatalError("Unsupported streaming provider: \(model.provider). Check supportsStreaming() before calling startStreaming().")
         }

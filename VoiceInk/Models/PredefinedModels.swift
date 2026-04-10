@@ -10,6 +10,20 @@ import Foundation
                 let appleSupportedCodes = ["ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "yue", "zh"]
                 return allLanguages.filter { appleSupportedCodes.contains($0.key) }
             }
+            // For Speechmatics, return only supported languages
+            if provider == .speechmatics {
+                let speechmaticsSupportedCodes = [
+                    "ar", "ba", "eu", "be", "bn", "bg", "yue", "ca", "hr", "cs", "da",
+                    "nl", "en", "et", "fi", "fr", "gl", "de", "el", "he", "hi",
+                    "hu", "id", "it", "ja", "ko", "lv", "lt", "ms", "mt", "mr",
+                    "mn", "no", "fa", "pl", "pt", "ro", "ru", "sk", "sl", "es",
+                    "sw", "sv", "tl", "ta", "th", "tr", "uk", "ur", "vi", "cy",
+                    "zh"
+                ]
+                var filtered = allLanguages.filter { speechmaticsSupportedCodes.contains($0.key) }
+                filtered["auto"] = "Auto-detect"
+                return filtered
+            }
             // For Soniox, return only the 60 languages supported by stt-async-v4
             if provider == .soniox {
                 let sonioxSupportedCodes = [
@@ -102,7 +116,7 @@ import Foundation
         ),
         
         // Parakeet Models
-        ParakeetModel(
+        FluidAudioModel(
             name: "parakeet-tdt-0.6b-v2",
             displayName: "Parakeet V2",
             description: "NVIDIA's Parakeet V2 model optimized for lightning-fast English-only transcription",
@@ -110,9 +124,9 @@ import Foundation
             speed: 0.99,
             accuracy: 0.94,
             ramUsage: 0.8,
-            supportedLanguages: getLanguageDictionary(isMultilingual: false, provider: .parakeet)
+            supportedLanguages: getLanguageDictionary(isMultilingual: false, provider: .fluidAudio)
         ),
-        ParakeetModel(
+        FluidAudioModel(
             name: "parakeet-tdt-0.6b-v3",
             displayName: "Parakeet V3",
             description: "NVIDIA's Parakeet V3 model with multilingual support across English and 25 European languages",
@@ -120,7 +134,7 @@ import Foundation
             speed: 0.99,
             accuracy: 0.94,
             ramUsage: 0.8,
-            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .parakeet)
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .fluidAudio)
         ),
 
          // Local Models
@@ -339,6 +353,18 @@ import Foundation
             accuracy: 0.97,
             isMultilingual: true,
             supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .soniox)
+        ),
+
+        // Speechmatics Models
+        CloudModel(
+            name: "speechmatics-enhanced",
+            displayName: "Speechmatics Realtime",
+            description: "Speechmatics enhanced accuracy transcription with real-time streaming and 50+ language support",
+            provider: .speechmatics,
+            speed: 0.99,
+            accuracy: 0.98,
+            isMultilingual: true,
+            supportedLanguages: getLanguageDictionary(isMultilingual: true, provider: .speechmatics)
         )
      ]
  

@@ -8,19 +8,19 @@ class TranscriptionModelManager: ObservableObject {
     @Published var allAvailableModels: [any TranscriptionModel] = PredefinedModels.models
 
     private weak var whisperModelManager: WhisperModelManager?
-    private weak var parakeetModelManager: ParakeetModelManager?
+    private weak var fluidAudioModelManager: FluidAudioModelManager?
 
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionModelManager")
 
-    init(whisperModelManager: WhisperModelManager, parakeetModelManager: ParakeetModelManager) {
+    init(whisperModelManager: WhisperModelManager, fluidAudioModelManager: FluidAudioModelManager) {
         self.whisperModelManager = whisperModelManager
-        self.parakeetModelManager = parakeetModelManager
+        self.fluidAudioModelManager = fluidAudioModelManager
 
         // Wire up deletion callbacks so each manager notifies this manager.
         whisperModelManager.onModelDeleted = { [weak self] modelName in
             self?.handleModelDeleted(modelName)
         }
-        parakeetModelManager.onModelDeleted = { [weak self] modelName in
+        fluidAudioModelManager.onModelDeleted = { [weak self] modelName in
             self?.handleModelDeleted(modelName)
         }
 
@@ -28,7 +28,7 @@ class TranscriptionModelManager: ObservableObject {
         whisperModelManager.onModelsChanged = { [weak self] in
             self?.refreshAllAvailableModels()
         }
-        parakeetModelManager.onModelsChanged = { [weak self] in
+        fluidAudioModelManager.onModelsChanged = { [weak self] in
             self?.refreshAllAvailableModels()
         }
     }
@@ -40,8 +40,8 @@ class TranscriptionModelManager: ObservableObject {
             switch model.provider {
             case .local:
                 return whisperModelManager?.availableModels.contains { $0.name == model.name } ?? false
-            case .parakeet:
-                return parakeetModelManager?.isParakeetModelDownloaded(named: model.name) ?? false
+            case .fluidAudio:
+                return fluidAudioModelManager?.isFluidAudioModelDownloaded(named: model.name) ?? false
             case .nativeApple:
                 if #available(macOS 26, *) {
                     return true
@@ -60,6 +60,8 @@ class TranscriptionModelManager: ObservableObject {
                 return APIKeyManager.shared.hasAPIKey(forProvider: "Gemini")
             case .soniox:
                 return APIKeyManager.shared.hasAPIKey(forProvider: "Soniox")
+            case .speechmatics:
+                return APIKeyManager.shared.hasAPIKey(forProvider: "Speechmatics")
             case .custom:
                 return true
             }
@@ -120,7 +122,7 @@ class TranscriptionModelManager: ObservableObject {
 
     // MARK: - Handle model deletion callback
 
-    /// Called by WhisperModelManager.onModelDeleted or ParakeetModelManager.onModelDeleted.
+    /// Called by WhisperModelManager.onModelDeleted or FluidAudioModelManager.onModelDeleted.
     func handleModelDeleted(_ modelName: String) {
         if currentTranscriptionModel?.name == modelName {
             currentTranscriptionModel = nil

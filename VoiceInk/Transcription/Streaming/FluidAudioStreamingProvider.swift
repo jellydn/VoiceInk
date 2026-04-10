@@ -2,11 +2,11 @@ import FluidAudio
 import Foundation
 import os
 
-/// Agreement-based on-device streaming transcription using Parakeet ASR.
-final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
+/// Agreement-based on-device streaming transcription using FluidAudio ASR.
+final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ParakeetStreaming")
-    private let parakeetService: ParakeetTranscriptionService
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "FluidAudioStreaming")
+    private let fluidAudioService: FluidAudioTranscriptionService
     private var eventsContinuation: AsyncStream<StreamingTranscriptionEvent>.Continuation?
 
     private(set) var transcriptionEvents: AsyncStream<StreamingTranscriptionEvent>
@@ -18,6 +18,7 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
     private var trimmedSampleCount: Int = 0
 
     private var asrManager: AsrManager?
+    private var decoderLayerCount: Int = 0
     private let agreementEngine: WordAgreementEngine
     private let config: AgreementConfig
 
@@ -26,8 +27,8 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
     private var lastTranscribedSampleCount = 0
     private let minNewSamples = 8000 // ~0.5s
 
-    init(parakeetService: ParakeetTranscriptionService, config: AgreementConfig = AgreementConfig()) {
-        self.parakeetService = parakeetService
+    init(fluidAudioService: FluidAudioTranscriptionService, config: AgreementConfig = AgreementConfig()) {
+        self.fluidAudioService = fluidAudioService
         self.config = config
         self.agreementEngine = WordAgreementEngine(config: config)
 
@@ -42,12 +43,13 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
     }
 
     func connect(model: any TranscriptionModel, language: String?) async throws {
-        let version: AsrModelVersion = model.name.lowercased().contains("v2") ? .v2 : .v3
-        let models = try await parakeetService.getOrLoadModels(for: version)
+        let version: AsrModelVersion = FluidAudioModelManager.asrVersion(for: model.name)
+        let models = try await fluidAudioService.getOrLoadModels(for: version)
 
         let manager = AsrManager(config: .default)
-        try await manager.initialize(models: models)
+        try await manager.loadModels(models)
         self.asrManager = manager
+        self.decoderLayerCount = await manager.decoderLayerCount
 
         agreementEngine.reset()
         audioBuffer = []
@@ -57,7 +59,7 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
         startTranscriptionLoop()
 
         eventsContinuation?.yield(.sessionStarted)
-        logger.notice("Parakeet agreement streaming started for \(model.displayName, privacy: .public)")
+        logger.notice("FluidAudio agreement streaming started for \(model.displayName, privacy: .public)")
     }
 
     func sendAudioChunk(_ data: Data) async throws {
@@ -84,6 +86,7 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
 
         await asrManager?.cleanup()
         asrManager = nil
+        decoderLayerCount = 0
 
         bufferLock.lock()
         audioBuffer = []
@@ -92,7 +95,7 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
         agreementEngine.reset()
 
         eventsContinuation?.finish()
-        logger.notice("Parakeet agreement streaming disconnected")
+        logger.notice("FluidAudio agreement streaming disconnected")
     }
 
     // MARK: - Private
@@ -153,7 +156,8 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
         guard audioSlice.count >= Int(sampleRate) else { return }
 
         do {
-            let result = try await asrManager.transcribe(audioSlice)
+            var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
+            let result = try await asrManager.transcribe(audioSlice, decoderState: &state)
             lastTranscribedSampleCount = absoluteSampleCount
 
             guard let tokenTimings = result.tokenTimings, !tokenTimings.isEmpty else {
@@ -224,7 +228,8 @@ final class ParakeetStreamingProvider: StreamingTranscriptionProvider {
         }
 
         do {
-            let result = try await asrManager.transcribe(samples)
+            var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
+            let result = try await asrManager.transcribe(samples, decoderState: &state)
             let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
             return TextNormalizer.shared.normalizeSentence(text)

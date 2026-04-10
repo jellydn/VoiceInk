@@ -110,6 +110,17 @@ class CloudTranscriptionService: TranscriptionService {
                     customVocabulary: customVocabulary
                 )
 
+            case .speechmatics:
+                let apiKey = try requireAPIKey(forProvider: "Speechmatics")
+                let customVocabulary = getCustomDictionaryTerms()
+                return try await SpeechmaticsClient.transcribe(
+                    audioData: audioData,
+                    fileName: fileName,
+                    apiKey: apiKey,
+                    language: language,
+                    customVocabulary: customVocabulary
+                )
+
             case .custom:
                 guard let customModel = model as? CustomCloudModel else {
                     throw CloudTranscriptionError.unsupportedProvider

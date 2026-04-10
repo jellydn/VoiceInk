@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TranscriptionDetailView: View {
     let transcription: Transcription
+    var onInfoTap: (() -> Void)?
 
     private var hasAudioFile: Bool {
         if let urlString = transcription.audioFileURL,
@@ -38,7 +39,7 @@ struct TranscriptionDetailView: View {
                 VStack(spacing: 0) {
                     Divider()
 
-                    AudioPlayerView(url: url)
+                    AudioPlayerView(url: url, transcription: transcription, onInfoTap: onInfoTap)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(

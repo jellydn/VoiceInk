@@ -1,19 +1,18 @@
 import SwiftUI
 import AppKit
+import LLMkit
 
 // MARK: - Cloud Model Card View
 struct CloudModelCardView: View {
     let model: CloudModel
     let isCurrent: Bool
     var setDefaultAction: () -> Void
-    
+
     @EnvironmentObject private var transcriptionModelManager: TranscriptionModelManager
-    @StateObject private var aiService = AIService()
     @State private var isExpanded = false
     @State private var apiKey = ""
     @State private var isVerifying = false
     @State private var verificationStatus: VerificationStatus = .none
-    @State private var isConfiguredState: Bool = false
     @State private var verificationError: String? = nil
     
     enum VerificationStatus {
@@ -38,6 +37,8 @@ struct CloudModelCardView: View {
             return "Gemini"
         case .soniox:
             return "Soniox"
+        case .speechmatics:
+            return "Speechmatics"
         default:
             return model.provider.rawValue
         }
@@ -70,7 +71,6 @@ struct CloudModelCardView: View {
         .background(CardBackground(isSelected: isCurrent, useAccentGradientWhenSelected: isCurrent))
         .onAppear {
             loadSavedAPIKey()
-            isConfiguredState = isConfigured
         }
     }
     
@@ -95,7 +95,7 @@ struct CloudModelCardView: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.accentColor))
                     .foregroundColor(.white)
-            } else if isConfiguredState {
+            } else if isConfigured {
                 Text("Configured")
                     .font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 6)
@@ -165,7 +165,7 @@ struct CloudModelCardView: View {
                 Text("Default Model")
                     .font(.system(size: 12))
                     .foregroundColor(Color(.secondaryLabelColor))
-            } else if isConfiguredState {
+            } else if isConfigured {
                 Button(action: setDefaultAction) {
                     Text("Set as Default")
                         .font(.system(size: 12))
@@ -196,7 +196,7 @@ struct CloudModelCardView: View {
                 .buttonStyle(.plain)
             }
             
-            if isConfiguredState {
+            if isConfigured {
                 Menu {
                     Button {
                         clearAPIKey()
@@ -277,48 +277,54 @@ struct CloudModelCardView: View {
     
     private func verifyAPIKey() {
         guard !apiKey.isEmpty else { return }
-        
+
         isVerifying = true
         verificationStatus = .verifying
-        
-        switch model.provider {
-        case .groq:
-            aiService.selectedProvider = .groq
-        case .elevenLabs:
-            aiService.selectedProvider = .elevenLabs
-        case .deepgram:
-            aiService.selectedProvider = .deepgram
-        case .mistral:
-            aiService.selectedProvider = .mistral
-        case .gemini:
-            aiService.selectedProvider = .gemini
-        case .soniox:
-            aiService.selectedProvider = .soniox
-        default:
-            // This case should ideally not be hit for cloud models in this view
-            print("Warning: verifyAPIKey called for unsupported provider \(model.provider.rawValue)")
-            isVerifying = false
-            verificationStatus = .failure
-            return
-        }
-        
-        aiService.saveAPIKey(apiKey) { isValid, errorMessage in
-            DispatchQueue.main.async {
-                self.isVerifying = false
-                if isValid {
-                    self.verificationStatus = .success
-                    self.verificationError = nil
-                    // Save the API key to Keychain
-                    APIKeyManager.shared.saveAPIKey(self.apiKey, forProvider: self.providerKey)
-                    self.isConfiguredState = true
+        let key = apiKey
 
-                    // Collapse the configuration section after successful verification
+        Task {
+            let result: (isValid: Bool, errorMessage: String?)
+            switch model.provider {
+            case .groq:
+                result = await OpenAILLMClient.verifyAPIKey(
+                    baseURL: URL(string: "https://api.groq.com/openai/v1/chat/completions")!,
+                    apiKey: key,
+                    model: model.name
+                )
+            case .elevenLabs:
+                result = await ElevenLabsClient.verifyAPIKey(key)
+            case .deepgram:
+                result = await DeepgramClient.verifyAPIKey(key)
+            case .mistral:
+                result = await MistralTranscriptionClient.verifyAPIKey(key)
+            case .gemini:
+                result = await GeminiTranscriptionClient.verifyAPIKey(key)
+            case .soniox:
+                result = await SonioxClient.verifyAPIKey(key)
+            case .speechmatics:
+                result = await SpeechmaticsClient.verifyAPIKey(key)
+            default:
+                await MainActor.run {
+                    isVerifying = false
+                    verificationStatus = .failure
+                    verificationError = "Unsupported provider"
+                }
+                return
+            }
+
+            await MainActor.run {
+                isVerifying = false
+                if result.isValid {
+                    verificationStatus = .success
+                    verificationError = nil
+                    APIKeyManager.shared.saveAPIKey(key, forProvider: providerKey)
+                    transcriptionModelManager.refreshAllAvailableModels()
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        self.isExpanded = false
+                        isExpanded = false
                     }
                 } else {
-                    self.verificationStatus = .failure
-                    self.verificationError = errorMessage
+                    verificationStatus = .failure
+                    verificationError = result.errorMessage
                 }
             }
         }
@@ -329,16 +335,12 @@ struct CloudModelCardView: View {
         apiKey = ""
         verificationStatus = .none
         verificationError = nil
-        isConfiguredState = false
 
-        // If this model is currently the default, clear it
         if isCurrent {
-            Task {
-                await MainActor.run {
-                    transcriptionModelManager.clearCurrentTranscriptionModel()
-                }
-            }
+            transcriptionModelManager.clearCurrentTranscriptionModel()
         }
+
+        transcriptionModelManager.refreshAllAvailableModels()
 
         withAnimation(.easeInOut(duration: 0.3)) {
             isExpanded = false

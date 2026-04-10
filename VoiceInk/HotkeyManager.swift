@@ -11,6 +11,7 @@ extension KeyboardShortcuts.Name {
     static let pasteLastEnhancement = Self("pasteLastEnhancement")
     static let retryLastTranscription = Self("retryLastTranscription")
     static let openHistoryWindow = Self("openHistoryWindow")
+    static let quickAddToDictionary = Self("quickAddToDictionary")
 }
 
 @MainActor
@@ -195,6 +196,13 @@ class HotkeyManager: ObservableObject {
                     modelContainer: self.engine.modelContext.container,
                     engine: self.engine
                 )
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .quickAddToDictionary) { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                DictionaryQuickAddManager.shared.toggle(modelContainer: self.engine.modelContext.container)
             }
         }
 

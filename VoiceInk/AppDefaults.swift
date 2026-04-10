@@ -49,6 +49,7 @@ enum AppDefaults {
 
             // Model
             "PrewarmModelOnWake": true,
+
         ])
     }
 }
