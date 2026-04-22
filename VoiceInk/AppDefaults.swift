@@ -41,7 +41,6 @@ enum AppDefaults {
             "middleClickActivationDelay": 200,
 
             // Enhancement
-            "isToggleEnhancementShortcutEnabled": true,
             "SkipShortEnhancement": true,
             "ShortEnhancementWordThreshold": 3,
             "EnhancementTimeoutSeconds": 7,

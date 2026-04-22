@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os
 
 @MainActor
 class LicenseViewModel: ObservableObject {
@@ -13,10 +14,12 @@ class LicenseViewModel: ObservableObject {
     @Published var licenseKey: String = ""
     @Published var isValidating = false
     @Published var validationMessage: String?
+    @Published var validationSuccess: Bool = false
     @Published private(set) var activationsLimit: Int = 0
 
     private let trialPeriodDays = 7
     private let polarService = PolarService()
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "LicenseViewModel")
     private let userDefaults = UserDefaults.standard
     private let licenseManager = LicenseManager.shared
 

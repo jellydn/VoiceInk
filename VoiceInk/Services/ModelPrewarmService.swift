@@ -106,7 +106,7 @@ final class ModelPrewarmService: ObservableObject {
         }
 
         switch model.provider {
-        case .local, .fluidAudio:
+        case .whisper, .fluidAudio:
             return true
         default:
             logger.notice("Skipping prewarm - cloud models don't need it")
