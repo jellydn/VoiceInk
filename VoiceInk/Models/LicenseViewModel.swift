@@ -49,7 +49,7 @@ class LicenseViewModel: ObservableObject {
         licenseState = .licensed
         validationSuccess = true
         validationMessage = "License checks are disabled in this fork."
-        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("licenseStatusChanged"), object: nil)
     }
 
     func removeLicense() {
@@ -57,7 +57,7 @@ class LicenseViewModel: ObservableObject {
         licenseKey = ""
         validationMessage = nil
         activationsLimit = 0
-        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("licenseStatusChanged"), object: nil)
     }
 }
 
