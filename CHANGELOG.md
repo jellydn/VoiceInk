@@ -2,64 +2,61 @@
 
 All notable changes by jellydn to the VoiceInk project are documented in this file.
 
-## [2026] - Modifications
+## [2026-05] - Sync & Fixes
 
-### Major Changes
+### Upstream Sync (v1.76)
+Rebased fork onto Beingpax/VoiceInk@cf3ebd2 (38 new upstream commits). Includes:
+- Recorder session metrics with model performance dashboard (#678)
+- Cloud STT providers: AssemblyAI, Cartesia Ink Whisper (#677)
+- Transcript formatting options (remove punctuation) (#675)
+- Improved download UI (#674)
+- Selective backup import (#688)
+- Native Apple Speech asset fixes (#681)
+- Recording startup race and mute timing fixes (#680)
+- Transcription paste delay fixes (#679)
+- Parakeet V3 int4/int8 encoder
+- Stats store with CloudKit sync disabled
+- SessionMetric migration service
+- Various bug fixes and improvements
 
-#### Hard-disabled License/Trial Gating in Fork
-- **Commit: b8c70b3** - Force `LicenseViewModel` to always remain licensed in fork builds
-- **Commit: b8c70b3** - Make `canUseApp` always return `true`
-- **Commit: b8c70b3** - Short-circuit `validateLicense()` and keep app usable after `removeLicense()`
+All fork modifications preserved after rebase.
+
+### License Fixes
+- **Commit: 94a4388** - Fix LicenseViewModel: use raw Notification.Name string to avoid extension dependency
+- **Commit: 2b3f5ae** - Fix LicenseViewModel: remove unused PolarService and LicenseManager references
+- **Commit: 1411308** - Force `LicenseViewModel` to always remain licensed in fork builds
+- **Commit: 1411308** - Make `canUseApp` always return `true`
+- **Commit: 1411308** - Short-circuit `validateLicense()` and keep app usable after `removeLicense()`
 
 These changes prevent trial-expired and paywall gating from reappearing after upstream rebases by enforcing free-fork behavior at the license state source.
+
+### Infrastructure
+- **Commit: cb0401a** - Add .claude/settings.local.json to gitignore
+- **Commit: 954346a** - Remove DMG from repository and add to gitignore
 
 ## [2025] - Modifications
 
 ### Major Changes
 
 #### Removed Paywall/Premium Restrictions
-- **Commit: 0044c6b** - Removed all premium/paywall checks for free fork version
-- **Commit: a5a6142** - Removed paywall in debug mode for WhisperState
-- **Commit: c389aaa** - Enabled debug mode to bypass license restrictions
+- **Commit: a3f4f27** - Removed all premium/paywall checks for free fork version
 
 These modifications remove all paywall and premium feature restrictions from VoiceInk, making all features freely available to users. All changes comply with the GNU General Public License v3.0 (GPLv3) terms.
 
 ### Build & Release Improvements
 
 #### Build System Enhancements
-- **Commit: d621f72** - Enhanced Makefile with hot reload and build configuration targets
-- **Commit: f56139c** - Enhanced Makefile with automatic framework path management
+- **Commit: 89b911e** - Enhanced Makefile with hot reload and build configuration targets
+- **Commit: a4cd8df** - Enhanced Makefile with automatic framework path management
 
 #### Release Workflow
-- **Commit: 41e2a64** - Added beta release workflow from main branch
-- **Commit: 1f42da6** - Fixed beta release workflow: Add DMG creation, remove circular PR
-- **Commit: 061865d** - Fixed DMG cleanup in beta release workflow
-- **Commit: 6b1ab74** - Fixed beta release: Use Debug builds and add ad-hoc signing
-- **Commit: b8558cf** - Reverted ad-hoc signing and added Gatekeeper bypass instructions
-
-### Code Refactoring & Improvements
-
-#### Dependency & Service Updates
-- **Commit: 6211417** - Simplified SelectedTextService to remove external dependency
-- **Commit: 60125c3** - Migrated dictionary data from UserDefaults to SwiftData
-
-#### Data Persistence
-- **Commit: 2a9bf12** - Removed unused isEnabled property from VocabularyWord
-- **Commit: 4e55192** - Fixed Soniox vocabulary integration to read from SwiftData
-- **Commit: 60125c3** - Migrated dictionary data from UserDefaults to SwiftData
-
-#### Error Handling & Stability
-- **Commit: a631043** - Added error handling for dictionary save operations
-- **Commit: 4e55192** - Fixed Soniox vocabulary integration to read from SwiftData
-- **Commit: 7beb63e** - Prevented crashes and duplicates in import operations
-- **Commit: bf3c035** - Added rollback for failed dictionary operations
-- **Commit: 93f8811** - Added missing rollback in dictionary import error handling
-
-#### UI Improvements
-- **Commit: 3a2721e** - Reduced hero section size and created reusable component
+- **Commit: b2b013e** - Added beta release workflow from main branch
+- **Commit: ba46e10** - Simplified beta workflow: attach DMG to release, remove PR
+- **Commit: f49a924** - Fix beta workflow: use Release configuration consistently
+- **Commit: da47d63** - Fix beta release workflow: use ad-hoc signing
 
 ### Upstream Integration
-- **Commit: 9d75109** - Merged pull request #454 from Beingpax/dictionary-refactor
+- **Commit: 9d75109** - Merged pull request #454 from Beingpax/dictionary-refactor (historical)
 
 ---
 
