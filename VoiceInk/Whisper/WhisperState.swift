@@ -3,7 +3,6 @@ import SwiftUI
 import AVFoundation
 import SwiftData
 import AppKit
-import KeyboardShortcuts
 import os
 
 @MainActor
