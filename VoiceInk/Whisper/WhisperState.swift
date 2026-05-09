@@ -6,16 +6,6 @@ import AppKit
 import KeyboardShortcuts
 import os
 
-// MARK: - Recording State Machine
-enum RecordingState: Equatable {
-    case idle
-    case starting
-    case recording
-    case transcribing
-    case enhancing
-    case busy
-}
-
 @MainActor
 class WhisperState: NSObject, ObservableObject {
     @Published var recordingState: RecordingState = .idle
