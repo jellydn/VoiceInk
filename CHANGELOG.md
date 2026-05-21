@@ -4,6 +4,26 @@ All notable changes by jellydn to the VoiceInk project are documented in this fi
 
 ## [2026-05] - Sync & Fixes
 
+### Upstream Sync (v1.77 → v1.78)
+Rebased fork onto Beingpax/VoiceInk@3898b52 (52 new upstream commits). Includes:
+- Unified shortcut handling with custom recording shortcut (#706)
+- Selectable built-in recording sounds (#731)
+- Gemini 3.5 Flash enhancement model support
+- Punctuation cleanup mode (#711)
+- Copilot CLI enhancement template (#708)
+- Improved paste reliability and clipboard restore (#721, #729)
+- FluidAudio improvements: language hints, streaming minimum, ASR handling (#718)
+- Recording shortcut interruption fixes (#724)
+- Recorder session lifecycle fixes (#723)
+- CustomSoundManager and SoundPlaybackEngine
+- RecordingShortcutManager with ShortcutStore/Monitor/Validator
+- Delegate update scheduling to Sparkle
+- Various bug fixes and improvements
+
+Removed stale WhisperState.swift and WhisperState+UI.swift (replaced by upstream's VoiceInkEngine + RecorderUIManager).
+
+All fork modifications preserved after rebase.
+
 ### Upstream Sync (v1.76)
 Rebased fork onto Beingpax/VoiceInk@cf3ebd2 (38 new upstream commits). Includes:
 - Recorder session metrics with model performance dashboard (#678)
