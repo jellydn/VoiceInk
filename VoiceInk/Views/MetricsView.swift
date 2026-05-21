@@ -11,7 +11,8 @@ struct MetricsView: View {
             // Remove all trial messages for free fork version
 
             MetricsContent(
-                modelContext: modelContext
+                modelContext: modelContext,
+                licenseState: .licensed
             )
         }
         .background(Color(.controlBackgroundColor))

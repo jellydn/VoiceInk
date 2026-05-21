@@ -71,7 +71,7 @@ private enum DashboardMetricsLoader {
 struct MetricsContent: View {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MetricsContent")
     let modelContext: ModelContext
-    // Remove licenseState for free fork version
+    let licenseState: LicenseViewModel.LicenseState
 
     @State private var totalCount: Int = 0
     @State private var totalWords: Int = 0
