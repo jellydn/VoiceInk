@@ -1,44 +1,25 @@
 import Foundation
 
 enum TranscriptionLanguageSupport {
-    private static let assemblyAIRealtimeLanguageCodes = ["en", "es", "de", "fr", "pt", "it"]
-
-    private static let assemblyAIBatchLanguageCodes = [
-        "en", "en_au", "en_uk", "en_us", "es", "fr", "de", "it", "pt", "nl",
-        "hi", "ja", "zh", "fi", "ko", "pl", "ru", "tr", "uk", "vi", "af",
-        "sq", "am", "ar", "hy", "as", "az", "ba", "eu", "be", "bn", "bs",
-        "br", "bg", "my", "ca", "hr", "cs", "da", "et", "fo", "gl", "ka",
-        "el", "gu", "ht", "ha", "haw", "he", "hu", "is", "id", "jw", "kn",
-        "kk", "km", "lo", "la", "lv", "ln", "lt", "lb", "mk", "mg", "ms",
-        "ml", "mt", "mi", "mr", "mn", "ne", "no", "nn", "oc", "pa", "ps",
-        "fa", "ro", "sa", "sr", "sn", "sd", "si", "sk", "sl", "so", "su",
-        "sw", "sv", "de_ch", "tl", "tg", "ta", "tt", "te", "th", "bo",
-        "tk", "ur", "uz", "cy", "yi", "yo"
-    ]
-
-    static func languages(for model: any TranscriptionModel) -> [String: String] {
-        if model.provider == .assemblyAI {
-            return assemblyAILanguages(usesRealtime: assemblyAIUsesRealtime(for: model))
-        }
-
-        return model.supportedLanguages
+    static func languages(for model: any TranscriptionModel, realtimeEnabled: Bool? = nil) -> [String: String] {
+        model.supportedLanguages
     }
 
-    static func validLanguageOrFallback(_ language: String?, for model: any TranscriptionModel) -> String {
-        let languages = languages(for: model)
+    static func validLanguageOrFallback(
+        _ language: String?, for model: any TranscriptionModel, realtimeEnabled: Bool? = nil
+    ) -> String {
+        let languages = languages(for: model, realtimeEnabled: realtimeEnabled)
 
         if let language, languages[language] != nil {
             return language
         }
 
-        if model.provider == .nativeApple {
-            if languages["en-US"] != nil {
-                return "en-US"
-            }
-        }
-
         if languages["auto"] != nil {
             return "auto"
+        }
+
+        if languages["en-US"] != nil {
+            return "en-US"
         }
 
         if languages["en"] != nil {
@@ -50,24 +31,6 @@ enum TranscriptionLanguageSupport {
         }.first ?? "en"
     }
 
-    private static func assemblyAILanguages(usesRealtime: Bool) -> [String: String] {
-        let codes = usesRealtime ? assemblyAIRealtimeLanguageCodes : assemblyAIBatchLanguageCodes
-        var filtered = LanguageDictionary.all.filter { codes.contains($0.key) }
-        filtered["auto"] = "Auto-detect"
-        return filtered
-    }
-
-    private static func assemblyAIUsesRealtime(for model: any TranscriptionModel) -> Bool {
-        guard model.provider == .assemblyAI, model.supportsStreaming else {
-            return false
-        }
-
-        if let cloudProvider = CloudProviderRegistry.provider(for: model.provider), cloudProvider.isStreamingOnly {
-            return true
-        }
-
-        return UserDefaults.standard.object(forKey: "streaming-enabled-\(model.name)") as? Bool ?? true
-    }
 }
 
 enum LanguageDictionary {
@@ -82,7 +45,7 @@ enum LanguageDictionary {
         "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt",
         "ro", "ru", "sa", "sd", "si", "sk", "sl", "sn", "so", "sq",
         "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl",
-        "tr", "tt", "uk", "ur", "uz", "vi", "yi", "yo", "yue", "zh"
+        "tr", "tt", "uk", "ur", "uz", "vi", "yi", "yo", "yue", "zh",
     ]
 
     static func forProvider(isMultilingual: Bool, provider: ModelProvider = .whisper) -> [String: String] {
@@ -94,9 +57,7 @@ enum LanguageDictionary {
             guard let codes = cloudProvider.languageCodes else {
                 return all
             }
-            var filtered = all.filter { codes.contains($0.key) }
-            if cloudProvider.includesAutoDetect { filtered["auto"] = "Auto-detect" }
-            return filtered
+            return forCodes(codes, includesAutoDetect: cloudProvider.includesAutoDetect)
         }
 
         switch provider {
@@ -110,7 +71,7 @@ enum LanguageDictionary {
             let codes = [
                 "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr",
                 "hr", "hu", "it", "lt", "lv", "mt", "nl", "pl", "pt", "ro",
-                "ru", "sk", "sl", "sv", "uk"
+                "ru", "sk", "sl", "sv", "uk",
             ]
             var filtered = all.filter { codes.contains($0.key) }
             filtered["auto"] = "Auto-detect"
@@ -120,6 +81,54 @@ enum LanguageDictionary {
             return all
         }
     }
+
+    static func forCodes(_ codes: [String], includesAutoDetect: Bool = false) -> [String: String] {
+        var filtered = all.filter { codes.contains($0.key) }
+        if includesAutoDetect { filtered["auto"] = "Auto-detect" }
+        return filtered
+    }
+
+    static let nemotronLatin: [String: String] = [
+        "auto": "Auto-detect",
+        "de-DE": "German",
+        "en-US": "English",
+        "es-US": "Spanish",
+        "fr-FR": "French",
+        "it-IT": "Italian",
+        "pt-BR": "Portuguese",
+    ]
+
+    static let nemotronMultilingual: [String: String] = [
+        "auto": "Auto-detect",
+        "ar-AR": "Arabic",
+        "bg-BG": "Bulgarian",
+        "cs-CZ": "Czech",
+        "da-DK": "Danish",
+        "de-DE": "German",
+        "en-US": "English",
+        "es-US": "Spanish",
+        "et-EE": "Estonian",
+        "fi-FI": "Finnish",
+        "fr-FR": "French",
+        "hi-IN": "Hindi",
+        "hr-HR": "Croatian",
+        "hu-HU": "Hungarian",
+        "it-IT": "Italian",
+        "ja-JP": "Japanese",
+        "ko-KR": "Korean",
+        "nb-NO": "Norwegian Bokmal",
+        "nl-NL": "Dutch",
+        "pl-PL": "Polish",
+        "pt-BR": "Portuguese",
+        "ro-RO": "Romanian",
+        "ru-RU": "Russian",
+        "sk-SK": "Slovak",
+        "sv-SE": "Swedish",
+        "tr-TR": "Turkish",
+        "uk-UA": "Ukrainian",
+        "vi-VN": "Vietnamese",
+        "zh-CN": "Mandarin Chinese",
+    ]
 
     private static func languages(matching codes: Set<String>) -> [String: String] {
         all.filter { codes.contains($0.key) }
@@ -157,7 +166,7 @@ enum LanguageDictionary {
         "yue-CN": "Cantonese (China mainland)",
         "zh-CN": "Chinese (China mainland)",
         "zh-HK": "Chinese (Hong Kong)",
-        "zh-TW": "Chinese (Taiwan)"
+        "zh-TW": "Chinese (Taiwan)",
     ]
 
     static let all: [String: String] = [
@@ -182,6 +191,11 @@ enum LanguageDictionary {
         "de_ch": "Swiss German",
         "el": "Greek",
         "en": "English",
+        "en-AU": "English (Australia)",
+        "en-GB": "English (United Kingdom)",
+        "en-IN": "English (India)",
+        "en-NZ": "English (New Zealand)",
+        "en-US": "English (United States)",
         "en_au": "Australian English",
         "en_uk": "British English",
         "en_us": "US English",
@@ -274,6 +288,6 @@ enum LanguageDictionary {
         "yo": "Yoruba",
         "yue": "Cantonese",
         "zh": "Chinese",
-        "zu": "Zulu"
+        "zu": "Zulu",
     ]
 }

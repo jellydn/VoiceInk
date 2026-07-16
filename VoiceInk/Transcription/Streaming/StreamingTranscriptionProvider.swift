@@ -8,6 +8,12 @@ enum StreamingTranscriptionEvent {
     case error(Error)
 }
 
+/// Tells the shared streaming layer how a provider wants to finish the recording.
+enum StreamingStopDisposition {
+    case finalizeStreaming
+    case useBatchFallback
+}
+
 /// Errors specific to streaming transcription
 enum StreamingTranscriptionError: LocalizedError {
     case missingAPIKey
@@ -15,25 +21,31 @@ enum StreamingTranscriptionError: LocalizedError {
     case timeout
     case serverError(String)
     case notConnected
+    case audioConversionFailed
 
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "API key not configured for streaming transcription"
+            return String(localized: "API key not configured for streaming transcription")
         case .connectionFailed(let message):
-            return "Streaming connection failed: \(message)"
+            return String(format: String(localized: "Streaming connection failed: %@"), message)
         case .timeout:
-            return "Streaming transcription timed out waiting for final result"
+            return String(localized: "Streaming transcription timed out waiting for final result")
         case .serverError(let message):
-            return "Streaming server error: \(message)"
+            return String(format: String(localized: "Streaming server error: %@"), message)
         case .notConnected:
-            return "Not connected to streaming transcription service"
+            return String(localized: "Not connected to streaming transcription service")
+        case .audioConversionFailed:
+            return String(localized: "Failed to convert audio chunk for streaming")
         }
     }
 }
 
 /// Protocol for streaming transcription providers.
 protocol StreamingTranscriptionProvider: AnyObject {
+    /// Provider-specific decision made when the user stops recording.
+    var stopDisposition: StreamingStopDisposition { get }
+
     /// Connect to the streaming transcription endpoint
     func connect(model: any TranscriptionModel, language: String?) async throws
 
@@ -48,4 +60,8 @@ protocol StreamingTranscriptionProvider: AnyObject {
 
     /// Stream of transcription events from the provider
     var transcriptionEvents: AsyncStream<StreamingTranscriptionEvent> { get }
+}
+
+extension StreamingTranscriptionProvider {
+    var stopDisposition: StreamingStopDisposition { .finalizeStreaming }
 }

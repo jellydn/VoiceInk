@@ -1,10 +1,11 @@
-import Foundation
 import AppKit
+import Foundation
 import os
 
 @MainActor
 class LicenseViewModel: ObservableObject {
     enum LicenseState: Equatable {
+        case unlicensed
         case trial(daysRemaining: Int)
         case trialExpired
         case licensed
@@ -13,6 +14,7 @@ class LicenseViewModel: ObservableObject {
     @Published private(set) var licenseState: LicenseState = .licensed
     @Published var licenseKey: String = ""
     @Published var isValidating = false
+    @Published private(set) var isDeactivating = false
     @Published var validationMessage: String?
     @Published var validationSuccess: Bool = false
     @Published private(set) var activationsLimit: Int = 0
@@ -21,22 +23,33 @@ class LicenseViewModel: ObservableObject {
     private let userDefaults = UserDefaults.standard
 
     init() {
-        // Fork behavior: always licensed
+        // Fork: always licensed; no trial or paywall gating
         licenseState = .licensed
     }
 
     func startTrial() {
-        // No-op: fork disables trial gating
         licenseState = .licensed
+        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
     }
 
     private func loadLicenseState() {
-        // Fork: always licensed
         licenseState = .licensed
+    }
+
+    func refreshLicenseState() {
+        licenseState = .licensed
+    }
+
+    var isLicensed: Bool {
+        true
     }
 
     var canUseApp: Bool {
         true
+    }
+
+    var usageRestrictionMessage: String? {
+        nil
     }
 
     func openPurchaseLink() {
@@ -48,20 +61,26 @@ class LicenseViewModel: ObservableObject {
     func validateLicense() async {
         licenseState = .licensed
         validationSuccess = true
-        validationMessage = "License checks are disabled in this fork."
-        NotificationCenter.default.post(name: Notification.Name("licenseStatusChanged"), object: nil)
+        validationMessage = String(localized: "License checks are disabled in this fork.")
+        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
     }
 
-    func removeLicense() {
+    func deactivateLicense() async {
+        guard !isDeactivating else { return }
+        isDeactivating = true
+        validationMessage = nil
+        defer { isDeactivating = false }
+
         licenseState = .licensed
         licenseKey = ""
         validationMessage = nil
+        validationSuccess = false
         activationsLimit = 0
-        NotificationCenter.default.post(name: Notification.Name("licenseStatusChanged"), object: nil)
+        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
     }
 }
 
-// UserDefaults extension for compatibility
+// UserDefaults extension for non-sensitive license settings
 extension UserDefaults {
     var activationsLimit: Int {
         get { integer(forKey: "VoiceInkActivationsLimit") }

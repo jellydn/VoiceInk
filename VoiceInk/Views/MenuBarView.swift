@@ -1,151 +1,100 @@
-import SwiftUI
 import LaunchAtLogin
+import OSLog
+import SwiftUI
 
 struct MenuBarView: View {
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarWindowFlow")
+
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject var engine: VoiceInkEngine
     @EnvironmentObject var recorderUIManager: RecorderUIManager
     @EnvironmentObject var transcriptionModelManager: TranscriptionModelManager
     @EnvironmentObject var whisperModelManager: WhisperModelManager
     @EnvironmentObject var recordingShortcutManager: RecordingShortcutManager
     @EnvironmentObject var menuBarManager: MenuBarManager
+    @EnvironmentObject var mainWindowNavigation: MainWindowNavigation
     @EnvironmentObject var updaterViewModel: UpdaterViewModel
     @EnvironmentObject var enhancementService: AIEnhancementService
     @EnvironmentObject var aiService: AIService
+    @ObservedObject private var modeManager = ModeManager.shared
     @ObservedObject var audioDeviceManager = AudioDeviceManager.shared
+    @AppStorage("hasCompletedOnboardingV2") private var hasCompletedOnboardingV2 = false
     @State private var launchAtLoginEnabled = LaunchAtLogin.isEnabled
-    @State private var menuRefreshTrigger = false
-    @State private var isHovered = false
-    
+
     var body: some View {
         VStack {
+            if hasCompletedOnboardingV2 {
+                completedOnboardingMenu
+            } else {
+                onboardingMenu
+            }
+        }
+    }
+
+    private var onboardingMenu: some View {
+        Group {
+            Button("Complete Onboarding") {
+                showMainWindow(reason: "Complete Onboarding")
+            }
+
+            Divider()
+
+            Button("Quit VoiceInk") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    private var completedOnboardingMenu: some View {
+        Group {
             Button("Toggle Recorder") {
-                recorderUIManager.handleToggleMiniRecorder()
+                recorderUIManager.handleToggleRecorderPanelNotification()
             }
 
             Divider()
 
             Menu {
-                ForEach(transcriptionModelManager.usableModels, id: \.id) { model in
+                ForEach(modeManager.enabledConfigurations) { config in
                     Button {
-                        Task {
-                            transcriptionModelManager.setDefaultTranscriptionModel(model)
-                        }
+                        modeManager.setActiveConfiguration(config)
                     } label: {
-                        HStack {
-                            Text(model.displayName)
-                            if transcriptionModelManager.currentTranscriptionModel?.id == model.id {
-                                Image(systemName: "checkmark")
-                            }
-                        }
+                        let isActive = modeManager.currentEffectiveConfiguration?.id == config.id
+                        Text(isActive ? "\(config.name)  ✓" : config.name)
                     }
+                }
+
+                if modeManager.enabledConfigurations.isEmpty {
+                    Text("No modes available")
+                        .foregroundColor(.secondary)
                 }
 
                 Divider()
 
+                Button("Manage Modes") {
+                    showMainWindowAndNavigate(to: "Modes", reason: "Manage Modes")
+                }
+
                 Button("Manage Models") {
-                    menuBarManager.openMainWindowAndNavigate(to: "AI Models")
+                    showMainWindowAndNavigate(to: "AI Models", reason: "Manage Models")
                 }
             } label: {
                 HStack {
-                    Text("Transcription Model: \(transcriptionModelManager.currentTranscriptionModel?.displayName ?? "None")")
+                    Image(systemName: "sparkles.square.fill.on.square")
+                        .font(.system(size: 11, weight: .medium))
+                    let activeMode = modeManager.currentEffectiveConfiguration
+                    Text(String(format: String(localized: "Mode: %@"), activeMode?.name ?? String(localized: "None")))
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10))
                 }
             }
-            
-            Divider()
-            
-            Toggle("AI Enhancement", isOn: $enhancementService.isEnhancementEnabled)
-            
-            Menu {
-                ForEach(enhancementService.allPrompts) { prompt in
-                    Button {
-                        enhancementService.setActivePrompt(prompt)
-                    } label: {
-                        HStack {
-                            Image(systemName: prompt.icon)
-                                .foregroundColor(.accentColor)
-                            Text(prompt.title)
-                            if enhancementService.selectedPromptId == prompt.id {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Text("Prompt: \(enhancementService.activePrompt?.title ?? "None")")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                }
-            }
-            
-            Menu {
-                ForEach(aiService.connectedProviders, id: \.self) { provider in
-                    Button {
-                        aiService.selectedProvider = provider
-                    } label: {
-                        HStack {
-                            Text(provider.rawValue)
-                            if aiService.selectedProvider == provider {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-
-                if aiService.connectedProviders.isEmpty {
-                    Text("No providers connected")
-                        .foregroundColor(.secondary)
-                }
-            } label: {
-                HStack {
-                    Text("AI Provider: \(aiService.selectedProvider.rawValue)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                }
-            }
-            
-            Menu {
-                ForEach(aiService.availableModels, id: \.self) { model in
-                    Button {
-                        aiService.selectModel(model)
-                    } label: {
-                        HStack {
-                            Text(model)
-                            if aiService.currentModel == model {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-
-                if aiService.availableModels.isEmpty {
-                    Text("No models available")
-                        .foregroundColor(.secondary)
-                }
-            } label: {
-                HStack {
-                    Text("AI Model: \(aiService.currentModel)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                }
-            }
-            
-            LanguageSelectionView(transcriptionModelManager: transcriptionModelManager, displayMode: .menuItem, whisperPrompt: whisperModelManager.whisperPrompt)
 
             Menu {
                 ForEach(audioDeviceManager.availableDevices, id: \.id) { device in
                     Button {
                         audioDeviceManager.selectDeviceAndSwitchToCustomMode(id: device.id)
                     } label: {
-                        HStack {
-                            Text(device.name)
-                            if audioDeviceManager.getCurrentDevice() == device.id {
-                                Image(systemName: "checkmark")
-                            }
-                        }
+                        let isActive = audioDeviceManager.getCurrentDevice() == device.id
+                        Text(isActive ? "\(device.name)  ✓" : device.name)
                     }
                 }
 
@@ -155,41 +104,14 @@ struct MenuBarView: View {
                 }
             } label: {
                 HStack {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 11, weight: .medium))
                     Text("Audio Input")
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10))
                 }
             }
 
-            Menu("Additional") {
-                Button {
-                    enhancementService.useClipboardContext.toggle()
-                    menuRefreshTrigger.toggle()
-                } label: {
-                    HStack {
-                        Text("Clipboard Context")
-                        Spacer()
-                        if enhancementService.useClipboardContext {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-
-                Button {
-                    enhancementService.useScreenCaptureContext.toggle()
-                    menuRefreshTrigger.toggle()
-                } label: {
-                    HStack {
-                        Text("Context Awareness")
-                        Spacer()
-                        if enhancementService.useScreenCaptureContext {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-            .id("additional-menu-\(menuRefreshTrigger)")
-            
             Divider()
 
             Button("Retry Last Transcription") {
@@ -205,43 +127,75 @@ struct MenuBarView: View {
                 LastTranscriptionService.copyLastTranscription(from: engine.modelContext)
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
-            
+
             Button("History") {
                 menuBarManager.openHistoryWindow()
             }
             .keyboardShortcut("h", modifiers: [.command, .shift])
-            
-            Button("Settings") {
-                menuBarManager.openMainWindowAndNavigate(to: "Settings")
-            }
-            .keyboardShortcut(",", modifiers: .command)
-            
+
             Button(menuBarManager.isMenuBarOnly ? "Show Dock Icon" : "Hide Dock Icon") {
+                let shouldShowMainWindow = menuBarManager.isMenuBarOnly
                 menuBarManager.toggleMenuBarOnly()
+
+                if shouldShowMainWindow {
+                    showMainWindow(reason: "Show Dock Icon")
+                }
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
-            
+
             Toggle("Launch at Login", isOn: $launchAtLoginEnabled)
                 .onChange(of: launchAtLoginEnabled) { oldValue, newValue in
                     LaunchAtLogin.isEnabled = newValue
                 }
-            
+
             Divider()
-            
+
+            Button("Settings") {
+                showMainWindowAndNavigate(to: "Settings", reason: "Settings")
+            }
+            .keyboardShortcut(",", modifiers: .command)
+
             Button("Check for Updates") {
                 updaterViewModel.checkForUpdates()
             }
             .disabled(!updaterViewModel.canCheckForUpdates)
-            
-            Button("Help and Support") {
-                EmailSupport.openSupportEmail()
-            }
-            
-            Divider()
 
             Button("Quit VoiceInk") {
                 NSApplication.shared.terminate(nil)
             }
         }
+    }
+
+    private func showMainWindow(reason: String) {
+        let existingWindow = WindowManager.shared.currentMainWindow()
+        logger.notice(
+            "🧭 Menu bar requested main window. reason=\(reason, privacy: .public); menuBarOnly=\(self.menuBarManager.isMenuBarOnly, privacy: .public); hasExistingMainWindow=\((existingWindow != nil), privacy: .public); activationPolicy=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public); snapshot=\(WindowDiagnostics.windowSnapshot(), privacy: .public)"
+        )
+        menuBarManager.activateForPresentedWindow(reason: reason)
+
+        if existingWindow == nil {
+            WindowManager.shared.prepareForUserRequestedMainWindow()
+            openWindow(id: AppWindowID.main)
+            logger.notice(
+                "🧭 Menu bar requested SwiftUI to create/open main window. reason=\(reason, privacy: .public); path=createViaOpenWindow"
+            )
+        } else {
+            openWindow(id: AppWindowID.main)
+            WindowManager.shared.showMainWindow()
+            logger.notice(
+                "🧭 Menu bar requested SwiftUI to open existing main window and asked WindowManager to present it. reason=\(reason, privacy: .public); path=existingWindow"
+            )
+        }
+    }
+
+    private func showMainWindowAndNavigate(to destination: String, reason: String) {
+        logger.notice(
+            "🧭 Menu bar navigation requested. reason=\(reason, privacy: .public); destination=\(destination, privacy: .public); selectedBefore=\(self.mainWindowNavigation.selectedView.rawValue, privacy: .public)"
+        )
+        mainWindowNavigation.navigate(to: destination)
+        logger.notice(
+            "🧭 Menu bar navigation state updated. reason=\(reason, privacy: .public); destination=\(destination, privacy: .public); selectedAfter=\(self.mainWindowNavigation.selectedView.rawValue, privacy: .public)"
+        )
+        showMainWindow(reason: reason)
     }
 }

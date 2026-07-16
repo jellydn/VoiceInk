@@ -1,8 +1,9 @@
 import AppKit
 import Combine
 import Foundation
-import SwiftUI
 import MediaRemoteAdapter
+import SwiftUI
+
 class PlaybackController: ObservableObject {
     static let shared = PlaybackController()
     private var mediaController: MediaRemoteAdapter.MediaController
@@ -23,7 +24,7 @@ class PlaybackController: ObservableObject {
             }
         }
     }
-    
+
     private init() {
         mediaController = MediaRemoteAdapter.MediaController()
 
@@ -33,20 +34,20 @@ class PlaybackController: ObservableObject {
             startMediaTracking()
         }
     }
-    
+
     private func setupMediaControllerCallbacks() {
         mediaController.onTrackInfoReceived = { [weak self] trackInfo in
             self?.isMediaPlaying = trackInfo?.payload.isPlaying ?? false
             self?.lastKnownTrackInfo = trackInfo
         }
-        
-        mediaController.onListenerTerminated = { }
+
+        mediaController.onListenerTerminated = {}
     }
-    
+
     private func startMediaTracking() {
         mediaController.startListening()
     }
-    
+
     private func stopMediaTracking() {
         mediaController.stopListening()
         isMediaPlaying = false
@@ -54,7 +55,7 @@ class PlaybackController: ObservableObject {
         wasPlayingWhenRecordingStarted = false
         originalMediaAppBundleId = nil
     }
-    
+
     func pauseMedia() async {
         resumeTask?.cancel()
         resumeTask = nil
@@ -63,9 +64,10 @@ class PlaybackController: ObservableObject {
         originalMediaAppBundleId = nil
 
         guard isPauseMediaEnabled,
-              isMediaPlaying,
-              lastKnownTrackInfo?.payload.isPlaying == true,
-              let bundleId = lastKnownTrackInfo?.payload.bundleIdentifier else {
+            isMediaPlaying,
+            lastKnownTrackInfo?.payload.isPlaying == true,
+            let bundleId = lastKnownTrackInfo?.payload.bundleIdentifier
+        else {
             return
         }
 
@@ -73,6 +75,7 @@ class PlaybackController: ObservableObject {
         originalMediaAppBundleId = bundleId
 
         try? await Task.sleep(nanoseconds: 50_000_000)
+        guard !Task.isCancelled else { return }
 
         mediaController.pause()
     }
@@ -88,8 +91,9 @@ class PlaybackController: ObservableObject {
         }
 
         guard isPauseMediaEnabled,
-              shouldResume,
-              let bundleId = originalBundleId else {
+            shouldResume,
+            let bundleId = originalBundleId
+        else {
             return
         }
 
@@ -98,9 +102,10 @@ class PlaybackController: ObservableObject {
         }
 
         guard let currentTrackInfo = lastKnownTrackInfo,
-              let currentBundleId = currentTrackInfo.payload.bundleIdentifier,
-              currentBundleId == bundleId,
-              currentTrackInfo.payload.isPlaying == false else {
+            let currentBundleId = currentTrackInfo.payload.bundleIdentifier,
+            currentBundleId == bundleId,
+            currentTrackInfo.payload.isPlaying == false
+        else {
             return
         }
 
@@ -147,5 +152,3 @@ class PlaybackController: ObservableObject {
         return runningApps.contains { $0.bundleIdentifier == bundleId }
     }
 }
-
-

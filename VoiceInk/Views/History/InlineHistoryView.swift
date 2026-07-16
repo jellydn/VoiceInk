@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct InlineHistoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -8,7 +8,7 @@ struct InlineHistoryView: View {
     @State private var selectedTranscriptions: Set<Transcription> = []
     @State private var showDeleteConfirmation = false
     @State private var isPanelPresented = false
-    @State private var panelMode: PanelMode = .info
+    @State private var panelMode: InlineHistoryPanelMode = .info
     @State private var panelTranscriptionId: UUID?
     @State private var displayedTranscriptions: [Transcription] = []
     @State private var isLoading = false
@@ -19,7 +19,8 @@ struct InlineHistoryView: View {
     private let exportService = VoiceInkCSVExportService()
     private let pageSize = 20
 
-    @Query(Self.createLatestTranscriptionIndicatorDescriptor()) private var latestTranscriptionIndicator: [Transcription]
+    @Query(Self.createLatestTranscriptionIndicatorDescriptor()) private var latestTranscriptionIndicator:
+        [Transcription]
 
     private static func createLatestTranscriptionIndicatorDescriptor() -> FetchDescriptor<Transcription> {
         var descriptor = FetchDescriptor<Transcription>(
@@ -37,9 +38,9 @@ struct InlineHistoryView: View {
         if let timestamp = timestamp {
             if !searchText.isEmpty {
                 descriptor.predicate = #Predicate<Transcription> { transcription in
-                    (transcription.text.localizedStandardContains(searchText) ||
-                    (transcription.enhancedText?.localizedStandardContains(searchText) ?? false)) &&
-                    transcription.timestamp < timestamp
+                    (transcription.text.localizedStandardContains(searchText)
+                        || (transcription.enhancedText?.localizedStandardContains(searchText) ?? false))
+                        && transcription.timestamp < timestamp
                 }
             } else {
                 descriptor.predicate = #Predicate<Transcription> { transcription in
@@ -48,8 +49,8 @@ struct InlineHistoryView: View {
             }
         } else if !searchText.isEmpty {
             descriptor.predicate = #Predicate<Transcription> { transcription in
-                transcription.text.localizedStandardContains(searchText) ||
-                (transcription.enhancedText?.localizedStandardContains(searchText) ?? false)
+                transcription.text.localizedStandardContains(searchText)
+                    || (transcription.enhancedText?.localizedStandardContains(searchText) ?? false)
             }
         }
 
@@ -64,6 +65,18 @@ struct InlineHistoryView: View {
     private var panelTranscription: Transcription? {
         guard let id = panelTranscriptionId else { return nil }
         return displayedTranscriptions.first { $0.id == id }
+    }
+
+    private func openPanel(mode: InlineHistoryPanelMode, transcriptionID: UUID? = nil) {
+        panelMode = mode
+        panelTranscriptionId = transcriptionID
+
+        isPanelPresented = true
+    }
+
+    private func closePanel() {
+        isPanelPresented = false
+        panelMode = .info
     }
 
     var body: some View {
@@ -85,43 +98,27 @@ struct InlineHistoryView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: selectedTranscriptions.isEmpty)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
-        .overlay {
-            Color.black.opacity(isPanelPresented ? 0.1 : 0)
-                .ignoresSafeArea()
-                .allowsHitTesting(isPanelPresented)
-                .onTapGesture {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        isPanelPresented = false
-                        panelMode = .info
-                    }
+        .sidePanel(
+            isPresented: .init(
+                get: { isPanelPresented },
+                set: { newValue in
+                    if !newValue { closePanel() }
                 }
-                .animation(.smooth(duration: 0.3), value: isPanelPresented)
+            )
+        ) {
+            panelContent
         }
-        .overlay(alignment: .trailing) {
-            if isPanelPresented {
-                panelContent
-                    .frame(width: 400)
-                    .frame(maxHeight: .infinity)
-                    .background(Color(NSColor.windowBackgroundColor))
-                    .overlay(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color(NSColor.separatorColor))
-                            .frame(width: 1)
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 8, x: -2, y: 0)
-                    .ignoresSafeArea()
-                    .transition(.move(edge: .trailing))
-            }
-        }
-        .animation(.smooth(duration: 0.3), value: isPanelPresented)
         .alert("Delete Selected Items?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 deleteSelectedTranscriptions()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This action cannot be undone. Are you sure you want to delete \(selectedTranscriptions.count) item\(selectedTranscriptions.count == 1 ? "" : "s")?")
+            Text(
+                String(
+                    localized:
+                        "This action cannot be undone. Are you sure you want to delete \(selectedTranscriptions.count) items?"
+                ))
         }
         .onAppear {
             isViewCurrentlyVisible = true
@@ -163,25 +160,34 @@ struct InlineHistoryView: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(Color.secondary.opacity(0.08))
+                    .fill(AppTheme.Surface.card)
             )
             .frame(maxWidth: .infinity)
+
+            AppIconButton(
+                systemName: "gearshape",
+                help: "History settings",
+                size: 30,
+                iconSize: 13,
+                cornerRadius: AppTheme.Radius.pill
+            ) {
+                openPanel(mode: .historySettings)
+            }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 24)
         .padding(.vertical, 10)
     }
 
     private var selectionBar: some View {
         HStack(spacing: 16) {
-            Text("\(selectedTranscriptions.count) selected")
+            Text(String(format: String(localized: "%lld selected"), Int64(selectedTranscriptions.count)))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.secondary)
 
             Spacer()
 
             Button(action: {
-                panelMode = .analysis
-                withAnimation(.smooth(duration: 0.3)) { isPanelPresented = true }
+                openPanel(mode: .analysis)
             }) {
                 Label("Analyze", systemImage: "chart.bar.xaxis")
                     .font(.system(size: 12, weight: .medium))
@@ -203,7 +209,7 @@ struct InlineHistoryView: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.plain)
-            .foregroundColor(.red.opacity(0.8))
+            .foregroundColor(AppTheme.Status.error.opacity(0.80))
 
             Divider()
                 .frame(height: 16)
@@ -224,10 +230,10 @@ struct InlineHistoryView: View {
                 .foregroundColor(.secondary)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 24)
         .padding(.vertical, 10)
         .background(
-            Color(NSColor.windowBackgroundColor)
+            AppTheme.Surface.window
                 .shadow(color: Color.black.opacity(0.1), radius: 3, y: -2)
         )
     }
@@ -268,11 +274,7 @@ struct InlineHistoryView: View {
                         },
                         onToggleCheck: { toggleSelection(transcription) },
                         onShowInfo: {
-                            panelTranscriptionId = transcription.id
-                            panelMode = .info
-                            withAnimation(.smooth(duration: 0.3)) {
-                                isPanelPresented = true
-                            }
+                            openPanel(mode: .info, transcriptionID: transcription.id)
                         }
                     )
                 }
@@ -302,7 +304,7 @@ struct InlineHistoryView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // MARK: - Sliding Panel
+    // MARK: - Side Panel
 
     @ViewBuilder
     private var panelContent: some View {
@@ -310,46 +312,21 @@ struct InlineHistoryView: View {
         case .info:
             infoPanelContent
         case .analysis:
-            PerformanceAnalysisPanelView(
+            HistoryAnalysisPanelView(
                 transcriptions: Array(selectedTranscriptions),
                 onClose: {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        isPanelPresented = false
-                        panelMode = .info
-                    }
+                    closePanel()
                 }
             )
             .id(selectedTranscriptions.count)
+        case .historySettings:
+            HistorySettingsPanel(onClose: closePanel)
         }
     }
 
     private var infoPanelContent: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Text("Info")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                Spacer()
-                Button(action: {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        isPanelPresented = false
-                        panelMode = .info
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .padding(6)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(Color(NSColor.windowBackgroundColor))
-            .overlay(Divider().opacity(0.5), alignment: .bottom)
-            .zIndex(1)
+            AppPanelHeader(title: "Info", onClose: closePanel)
 
             if let transcription = panelTranscription {
                 TranscriptionInfoPanel(transcription: transcription)
@@ -415,8 +392,9 @@ struct InlineHistoryView: View {
 
     private func performDeletion(for transcription: Transcription) {
         if let urlString = transcription.audioFileURL,
-           let url = URL(string: urlString),
-           FileManager.default.fileExists(atPath: url.path) {
+            let url = URL(string: urlString),
+            FileManager.default.fileExists(atPath: url.path)
+        {
             do {
                 try FileManager.default.removeItem(at: url)
             } catch {
@@ -429,7 +407,7 @@ struct InlineHistoryView: View {
         }
         if panelTranscriptionId == transcription.id {
             panelTranscriptionId = nil
-            isPanelPresented = false
+            closePanel()
         }
 
         selectedTranscriptions.remove(transcription)
@@ -460,8 +438,8 @@ struct InlineHistoryView: View {
 
             if !searchText.isEmpty {
                 allDescriptor.predicate = #Predicate<Transcription> { transcription in
-                    transcription.text.localizedStandardContains(searchText) ||
-                    (transcription.enhancedText?.localizedStandardContains(searchText) ?? false)
+                    transcription.text.localizedStandardContains(searchText)
+                        || (transcription.enhancedText?.localizedStandardContains(searchText) ?? false)
                 }
             }
 
@@ -482,6 +460,12 @@ struct InlineHistoryView: View {
             print("Error selecting all transcriptions: \(error)")
         }
     }
+}
+
+private enum InlineHistoryPanelMode {
+    case info
+    case analysis
+    case historySettings
 }
 
 // MARK: - History Card Row
@@ -507,8 +491,9 @@ private struct HistoryCardRow: View {
 
     private var hasAudioFile: Bool {
         if let urlString = transcription.audioFileURL,
-           let url = URL(string: urlString),
-           FileManager.default.fileExists(atPath: url.path) {
+            let url = URL(string: urlString),
+            FileManager.default.fileExists(atPath: url.path)
+        {
             return true
         }
         return false
@@ -517,10 +502,13 @@ private struct HistoryCardRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Toggle("", isOn: Binding(
-                    get: { isChecked },
-                    set: { _ in onToggleCheck() }
-                ))
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { isChecked },
+                        set: { _ in onToggleCheck() }
+                    )
+                )
                 .toggleStyle(CircularCheckboxStyle())
                 .labelsHidden()
 
@@ -568,14 +556,14 @@ private struct HistoryCardRow: View {
                                 selectedTab = tab
                             }
                         } label: {
-                            Text(tab.rawValue)
+                            Text(LocalizedStringKey(tab.rawValue))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(selectedTab == tab ? .primary : .secondary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill(selectedTab == tab ? Color.secondary.opacity(0.15) : Color.clear)
+                                        .fill(selectedTab == tab ? AppTheme.Surface.controlActive : Color.clear)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -585,22 +573,21 @@ private struct HistoryCardRow: View {
             }
 
             ScrollView {
-                Text(displayText)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                MarkdownContentView(
+                    displayText,
+                    fontSize: 14,
+                    foregroundColor: AppTheme.Text.primary
+                )
             }
             .frame(maxHeight: 350)
-            .overlay(alignment: .bottomTrailing) {
-                CopyIconButton(textToCopy: displayText)
-                    .padding(8)
-            }
+            .hoverCopyButton(textToCopy: displayText)
 
             if hasAudioFile, let urlString = transcription.audioFileURL,
-               let url = URL(string: urlString) {
+                let url = URL(string: urlString)
+            {
                 Divider()
                 AudioPlayerView(url: url, transcription: transcription, onInfoTap: onShowInfo)
-                .padding(.vertical, 4)
+                    .padding(.vertical, 4)
             } else {
                 HStack {
                     Spacer()
@@ -615,6 +602,4 @@ private struct HistoryCardRow: View {
             }
         }
     }
-
 }
-

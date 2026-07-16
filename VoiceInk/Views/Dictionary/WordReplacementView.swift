@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 enum SortMode: String {
     case originalAsc = "originalAsc"
@@ -26,7 +26,8 @@ struct WordReplacementView: View {
 
     init() {
         if let savedSort = UserDefaults.standard.string(forKey: "wordReplacementSortMode"),
-           let mode = SortMode(rawValue: savedSort) {
+            let mode = SortMode(rawValue: savedSort)
+        {
             _sortMode = State(initialValue: mode)
         }
     }
@@ -34,16 +35,24 @@ struct WordReplacementView: View {
     private var sortedReplacements: [WordReplacement] {
         switch sortMode {
         case .originalAsc:
-            return wordReplacements.sorted { $0.originalText.localizedCaseInsensitiveCompare($1.originalText) == .orderedAscending }
+            return wordReplacements.sorted {
+                $0.originalText.localizedCaseInsensitiveCompare($1.originalText) == .orderedAscending
+            }
         case .originalDesc:
-            return wordReplacements.sorted { $0.originalText.localizedCaseInsensitiveCompare($1.originalText) == .orderedDescending }
+            return wordReplacements.sorted {
+                $0.originalText.localizedCaseInsensitiveCompare($1.originalText) == .orderedDescending
+            }
         case .replacementAsc:
-            return wordReplacements.sorted { $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedAscending }
+            return wordReplacements.sorted {
+                $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedAscending
+            }
         case .replacementDesc:
-            return wordReplacements.sorted { $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedDescending }
+            return wordReplacements.sorted {
+                $0.replacementText.localizedCaseInsensitiveCompare($1.replacementText) == .orderedDescending
+            }
         }
     }
-    
+
     private func toggleSort(for column: SortColumn) {
         switch column {
         case .original:
@@ -57,52 +66,43 @@ struct WordReplacementView: View {
     private var shouldShowAddButton: Bool {
         !originalWord.isEmpty || !replacementWord.isEmpty
     }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            GroupBox {
-                Label {
-                    Text("Define word replacements to automatically replace specific words or phrases")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Button(action: { showInfoPopover.toggle() }) {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundColor(.blue)
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showInfoPopover) {
-                        WordReplacementInfoPopover()
-                    }
-                }
-            }
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                TextField("Original text (use commas for multiple)", text: $originalWord)
+                TextField("", text: $originalWord, prompt: Text("Original text (use commas for multiple)"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13))
+                    .labelsHidden()
 
                 Image(systemName: "arrow.right")
                     .foregroundColor(.secondary)
                     .font(.system(size: 10))
                     .frame(width: 10)
 
-                TextField("Replacement text", text: $replacementWord)
+                TextField("", text: $replacementWord, prompt: Text("Replacement text"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13))
                     .onSubmit { addReplacement() }
+                    .labelsHidden()
 
                 if shouldShowAddButton {
-                    Button(action: addReplacement) {
-                        Image(systemName: "plus.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.blue)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(originalWord.isEmpty || replacementWord.isEmpty)
-                    .help("Add word replacement")
+                    AddIconButton(
+                        helpText: "Add word replacement",
+                        isDisabled: originalWord.isEmpty || replacementWord.isEmpty,
+                        action: addReplacement
+                    )
+                }
+
+                Button {
+                    showInfoPopover.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Word replacement examples")
+                .popover(isPresented: $showInfoPopover) {
+                    WordReplacementInfoPopover()
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: shouldShowAddButton)
@@ -119,7 +119,7 @@ struct WordReplacementView: View {
                                 if sortMode == .originalAsc || sortMode == .originalDesc {
                                     Image(systemName: sortMode == .originalAsc ? "chevron.up" : "chevron.down")
                                         .font(.caption)
-                                        .foregroundColor(.accentColor)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,7 +141,7 @@ struct WordReplacementView: View {
                                 if sortMode == .replacementAsc || sortMode == .replacementDesc {
                                     Image(systemName: sortMode == .replacementAsc ? "chevron.up" : "chevron.down")
                                         .font(.caption)
-                                        .foregroundColor(.accentColor)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,30 +154,29 @@ struct WordReplacementView: View {
 
                     Divider()
 
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(sortedReplacements) { replacement in
-                                ReplacementRow(
-                                    original: replacement.originalText,
-                                    replacement: replacement.replacementText,
-                                    onDelete: { removeReplacement(replacement) },
-                                    onEdit: { editingReplacement = replacement }
-                                )
+                    LazyVStack(spacing: 0) {
+                        ForEach(sortedReplacements, id: \.persistentModelID) { replacement in
+                            ReplacementRow(
+                                original: replacement.originalText,
+                                replacement: replacement.replacementText,
+                                onDelete: { removeReplacement(replacement) },
+                                onEdit: { editingReplacement = replacement }
+                            )
 
-                                if replacement.id != sortedReplacements.last?.id {
-                                    Divider()
-                                }
+                            if replacement.persistentModelID != sortedReplacements.last?.persistentModelID {
+                                Divider()
                             }
                         }
                     }
-                    .frame(maxHeight: 300)
                 }
                 .padding(.top, 4)
             }
         }
-        .padding()
-        .sheet(item: $editingReplacement) { replacement in
-            EditReplacementSheet(replacement: replacement, modelContext: modelContext)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: isEditingReplacement) {
+            if let editingReplacement {
+                EditReplacementSheet(replacement: editingReplacement, modelContext: modelContext)
+            }
         }
         .alert("Word Replacement", isPresented: $showAlert) {
             Button("OK", role: .cancel) {}
@@ -189,7 +188,9 @@ struct WordReplacementView: View {
     private func addReplacement() {
         let original = originalWord.trimmingCharacters(in: .whitespacesAndNewlines)
         let replacement = replacementWord.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let error = DictionaryService.addWordReplacement(original: original, replacement: replacement, existing: Array(wordReplacements), context: modelContext) {
+        if let error = DictionaryService.addWordReplacement(
+            original: original, replacement: replacement, existing: Array(wordReplacements), context: modelContext)
+        {
             alertMessage = error
             showAlert = true
             return
@@ -206,9 +207,21 @@ struct WordReplacementView: View {
         } catch {
             // Rollback the delete to restore UI consistency
             modelContext.rollback()
-            alertMessage = "Failed to remove replacement: \(error.localizedDescription)"
+            alertMessage = String(
+                format: String(localized: "Failed to remove replacement: %@"), error.localizedDescription)
             showAlert = true
         }
+    }
+
+    private var isEditingReplacement: Binding<Bool> {
+        Binding(
+            get: { editingReplacement != nil },
+            set: { isPresented in
+                if !isPresented {
+                    editingReplacement = nil
+                }
+            }
+        )
     }
 }
 
@@ -255,7 +268,7 @@ struct WordReplacementInfoPopover: View {
                         Text("Replacement:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text("https://tryvoiceink.com")
+                        Text(verbatim: "https://tryvoiceink.com")
                             .font(.callout)
                     }
                 }
@@ -320,6 +333,7 @@ struct ReplacementRow: View {
                 Text(replacement)
                     .font(.system(size: 13))
                     .lineLimit(2)
+                    .truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.trailing, 50)
 
@@ -327,7 +341,7 @@ struct ReplacementRow: View {
                     Button(action: onEdit) {
                         Image(systemName: "pencil.circle.fill")
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundColor(isEditHovered ? .accentColor : .secondary)
+                            .foregroundColor(isEditHovered ? AppTheme.Accent.primary : .secondary)
                             .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.borderless)
@@ -341,7 +355,7 @@ struct ReplacementRow: View {
                     Button(action: onDelete) {
                         Image(systemName: "xmark.circle.fill")
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(isDeleteHovered ? .red : .secondary)
+                            .foregroundStyle(isDeleteHovered ? AppTheme.Status.error : .secondary)
                             .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.borderless)
@@ -358,4 +372,4 @@ struct ReplacementRow: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
     }
-} 
+}

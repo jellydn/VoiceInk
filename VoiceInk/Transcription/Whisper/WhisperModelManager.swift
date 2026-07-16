@@ -1,8 +1,8 @@
-import Foundation
-import os
-import Zip
-import SwiftUI
 import Atomics
+import Foundation
+import SwiftUI
+import Zip
+import os
 
 // MARK: - WhisperModelFile
 
@@ -10,7 +10,7 @@ struct WhisperModelFile: Identifiable {
     let id = UUID()
     let name: String
     let url: URL
-    var coreMLEncoderURL: URL? // Path to the unzipped .mlmodelc directory
+    var coreMLEncoderURL: URL?  // Path to the unzipped .mlmodelc directory
     var isCoreMLDownloaded: Bool { coreMLEncoderURL != nil }
 
     var downloadURL: String {
@@ -83,7 +83,8 @@ class WhisperModelManager: ObservableObject {
 
     func createModelsDirectoryIfNeeded() {
         do {
-            try FileManager.default.createDirectory(at: modelsDirectory, withIntermediateDirectories: true, attributes: nil)
+            try FileManager.default.createDirectory(
+                at: modelsDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
             logError("Error creating models directory", error)
         }
@@ -91,7 +92,8 @@ class WhisperModelManager: ObservableObject {
 
     func loadAvailableModels() {
         do {
-            let fileURLs = try FileManager.default.contentsOfDirectory(at: modelsDirectory, includingPropertiesForKeys: nil)
+            let fileURLs = try FileManager.default.contentsOfDirectory(
+                at: modelsDirectory, includingPropertiesForKeys: nil)
             availableModels = fileURLs.compactMap { url in
                 guard url.pathExtension == "bin" else { return nil }
                 return WhisperModelFile(name: url.deletingPathExtension().lastPathComponent, url: url)
@@ -112,7 +114,8 @@ class WhisperModelManager: ObservableObject {
         do {
             whisperContext = try await WhisperContext.createContext(path: model.url.path)
 
-            let currentPrompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? whisperPrompt.transcriptionPrompt
+            let currentPrompt =
+                UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? whisperPrompt.transcriptionPrompt
             await whisperContext?.setPrompt(currentPrompt)
 
             isModelLoaded = true
@@ -143,8 +146,9 @@ class WhisperModelManager: ObservableObject {
                 }
 
                 guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode),
-                      let tempURL = tempURL else {
+                    (200...299).contains(httpResponse.statusCode),
+                    let tempURL = tempURL
+                else {
                     finishOnce(.failure(URLError(.badServerResponse)))
                     return
                 }
@@ -202,7 +206,8 @@ class WhisperModelManager: ObservableObject {
             var whisperModel = try await downloadMainModel(model, from: url)
 
             if let coreMLZipURL = whisperModel.coreMLZipDownloadURL,
-               let coreMLURL = URL(string: coreMLZipURL) {
+                let coreMLURL = URL(string: coreMLZipURL)
+            {
                 whisperModel = try await downloadAndSetupCoreMLModel(for: whisperModel, from: coreMLURL)
             }
 
@@ -229,7 +234,9 @@ class WhisperModelManager: ObservableObject {
         return WhisperModelFile(name: model.name, url: destinationURL)
     }
 
-    private func downloadAndSetupCoreMLModel(for model: WhisperModelFile, from url: URL) async throws -> WhisperModelFile {
+    private func downloadAndSetupCoreMLModel(for model: WhisperModelFile, from url: URL) async throws
+        -> WhisperModelFile
+    {
         let progressKeyCoreML = model.name + "_coreml"
         let coreMLData = try await downloadFileWithProgress(from: url, progressKey: progressKeyCoreML)
 
@@ -239,7 +246,9 @@ class WhisperModelManager: ObservableObject {
         return try await unzipAndSetupCoreMLModel(for: model, zipPath: coreMLZipPath, progressKey: progressKeyCoreML)
     }
 
-    private func unzipAndSetupCoreMLModel(for model: WhisperModelFile, zipPath: URL, progressKey: String) async throws -> WhisperModelFile {
+    private func unzipAndSetupCoreMLModel(for model: WhisperModelFile, zipPath: URL, progressKey: String) async throws
+        -> WhisperModelFile
+    {
         let coreMLDestination = modelsDirectory.appendingPathComponent("\(model.name)-encoder.mlmodelc")
 
         try? FileManager.default.removeItem(at: coreMLDestination)
@@ -267,11 +276,14 @@ class WhisperModelManager: ObservableObject {
         }
     }
 
-    private func verifyAndCleanupCoreMLFiles(_ model: WhisperModelFile, _ destination: URL, _ zipPath: URL, _ progressKey: String) throws -> WhisperModelFile {
+    private func verifyAndCleanupCoreMLFiles(
+        _ model: WhisperModelFile, _ destination: URL, _ zipPath: URL, _ progressKey: String
+    ) throws -> WhisperModelFile {
         var model = model
 
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: destination.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+        guard FileManager.default.fileExists(atPath: destination.path, isDirectory: &isDirectory), isDirectory.boolValue
+        else {
             try? FileManager.default.removeItem(at: zipPath)
             throw VoiceInkEngineError.unzipFailed
         }
@@ -355,7 +367,7 @@ class WhisperModelManager: ObservableObject {
 
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             await NotificationManager.shared.showNotification(
-                title: "A model named \(baseName).bin already exists",
+                title: String(format: String(localized: "A model named %@.bin already exists"), baseName),
                 type: .warning,
                 duration: 4.0
             )
@@ -372,14 +384,14 @@ class WhisperModelManager: ObservableObject {
             onModelsChanged?()
 
             await NotificationManager.shared.showNotification(
-                title: "Imported \(destinationURL.lastPathComponent)",
+                title: String(format: String(localized: "Imported %@"), destinationURL.lastPathComponent),
                 type: .success,
                 duration: 3.0
             )
         } catch {
             logError("Failed to import local model", error)
             await NotificationManager.shared.showNotification(
-                title: "Failed to import model: \(error.localizedDescription)",
+                title: String(format: String(localized: "Failed to import model: %@"), error.localizedDescription),
                 type: .error,
                 duration: 5.0
             )
@@ -389,7 +401,7 @@ class WhisperModelManager: ObservableObject {
     // MARK: - Helpers
 
     private func logError(_ message: String, _ error: Error) {
-        logger.error("❌ \(message, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        logger.error("❌ \(message, privacy: .public): \(error, privacy: .public)")
     }
 }
 
@@ -428,13 +440,13 @@ struct DownloadProgressView: View {
 
     private var downloadPhase: String {
         if isOptimizing {
-            return "Optimizing model for your device"
+            return String(localized: "Optimizing model for your device")
         }
 
         if supportsCoreML && downloadProgress[modelName + "_coreml"] != nil {
-            return "Downloading Core ML Model for \(modelName)"
+            return String(format: String(localized: "Downloading Core ML Model for %@"), modelName)
         }
-        return "Downloading \(modelName) Model"
+        return String(format: String(localized: "Downloading %@ Model"), modelName)
     }
 
     var body: some View {
@@ -445,20 +457,20 @@ struct DownloadProgressView: View {
 
                 Spacer()
 
-                Text("\(Int(totalProgress * 100))%")
+                Text(totalProgress, format: .percent.precision(.fractionLength(0)))
                     .fontDesign(.monospaced)
             }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(.secondaryLabelColor))
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(Color(.secondaryLabelColor))
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.separatorColor).opacity(0.3))
+                        .fill(AppTheme.Border.control.opacity(0.3))
                         .frame(height: 6)
 
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.controlAccentColor))
+                        .fill(AppTheme.Accent.primary)
                         .frame(width: max(0, min(geometry.size.width * totalProgress, geometry.size.width)), height: 6)
                 }
             }

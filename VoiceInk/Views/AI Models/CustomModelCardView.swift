@@ -1,14 +1,12 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Custom Model Card View
 struct CustomModelCardView: View {
     let model: CustomCloudModel
-    let isCurrent: Bool
-    var setDefaultAction: () -> Void
     var deleteAction: () -> Void
     var editAction: (CustomCloudModel) -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Main card content
@@ -19,38 +17,37 @@ struct CustomModelCardView: View {
                     descriptionSection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 actionSection
             }
             .padding(16)
         }
-        .background(CardBackground(isSelected: isCurrent, useAccentGradientWhenSelected: isCurrent))
+        .background(AppMaterialCardBackground())
     }
-    
+
     private var headerSection: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(model.displayName)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Color(.labelColor))
-            
+
             Spacer()
         }
     }
-    
+
     private var metadataSection: some View {
         HStack(spacing: 12) {
-            // Provider
-            Label("Custom Provider", systemImage: "cloud")
+            Label(model.modelName, systemImage: "cube")
                 .font(.system(size: 11))
                 .foregroundColor(Color(.secondaryLabelColor))
                 .lineLimit(1)
-            
+
             // Language
             Label(model.language, systemImage: "globe")
                 .font(.system(size: 11))
                 .foregroundColor(Color(.secondaryLabelColor))
                 .lineLimit(1)
-            
+
             // OpenAI Compatible
             Label("OpenAI Compatible", systemImage: "checkmark.seal")
                 .font(.system(size: 11))
@@ -59,7 +56,7 @@ struct CustomModelCardView: View {
         }
         .lineLimit(1)
     }
-    
+
     private var descriptionSection: some View {
         Text(model.description)
             .font(.system(size: 11))
@@ -68,29 +65,18 @@ struct CustomModelCardView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
     }
-    
+
     private var actionSection: some View {
         HStack(spacing: 8) {
-            if isCurrent {
-                Text("Default Model")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(.secondaryLabelColor))
-            } else {
-                Button(action: setDefaultAction) {
-                    Text("Set as Default")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            
+            modelStatusPill("Configured", systemImage: "checkmark.circle")
+
             Menu {
                 Button {
                     editAction(model)
                 } label: {
                     Label("Edit Model", systemImage: "pencil")
                 }
-                
+
                 Button(role: .destructive) {
                     deleteAction()
                 } label: {

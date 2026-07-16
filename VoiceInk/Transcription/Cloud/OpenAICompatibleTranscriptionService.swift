@@ -1,9 +1,12 @@
 import Foundation
 
 class OpenAICompatibleTranscriptionService {
-    func transcribe(audioURL: URL, model: CustomCloudModel) async throws -> String {
+    func transcribe(audioURL: URL, model: CustomCloudModel, context: TranscriptionRequestContext) async throws -> String
+    {
         guard let url = URL(string: model.apiEndpoint) else {
-            throw NSError(domain: "CustomWhisperTranscriptionService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid API endpoint URL"])
+            throw NSError(
+                domain: "CustomWhisperTranscriptionService", code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid API endpoint URL"])
         }
 
         let boundary = "Boundary-\(UUID().uuidString)"
@@ -12,8 +15,14 @@ class OpenAICompatibleTranscriptionService {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(model.apiKey)", forHTTPHeaderField: "Authorization")
 
-        let body = try buildRequestBody(audioURL: audioURL, modelName: model.modelName, boundary: boundary)
-        let (data, response) = try await URLSession.shared.upload(for: request, from: body)
+        let body = try buildRequestBody(
+            audioURL: audioURL, modelName: model.modelName, boundary: boundary, context: context)
+        // Ephemeral session per request: the shared session persists Alt-Svc and upgrades
+        // new connections to HTTP/3, but QUIC bulk uploads blackhole behind VPNs that drop
+        // full-size UDP datagrams (e.g. GlobalProtect), timing out large audio uploads.
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.finishTasksAndInvalidate() }
+        let (data, response) = try await session.upload(for: request, from: body)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw CloudTranscriptionError.networkError(URLError(.badServerResponse))
@@ -31,13 +40,14 @@ class OpenAICompatibleTranscriptionService {
         }
     }
 
-    private func buildRequestBody(audioURL: URL, modelName: String, boundary: String) throws -> Data {
+    private func buildRequestBody(
+        audioURL: URL, modelName: String, boundary: String, context: TranscriptionRequestContext
+    ) throws -> Data {
         guard let audioData = try? Data(contentsOf: audioURL) else {
             throw CloudTranscriptionError.audioFileNotFound
         }
 
-        let selectedLanguage = UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto"
-        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? ""
+        let selectedLanguage = context.language ?? "auto"
         let crlf = "\r\n"
         var body = Data()
 
@@ -61,9 +71,6 @@ class OpenAICompatibleTranscriptionService {
 
         if selectedLanguage != "auto" && !selectedLanguage.isEmpty {
             field("language", selectedLanguage)
-        }
-        if !prompt.isEmpty {
-            field("prompt", prompt)
         }
 
         append("--\(boundary)--\(crlf)")

@@ -24,7 +24,8 @@ enum LocalCLITemplate: String, CaseIterable, Identifiable {
         case .claude:
             return "claude -p \"$VOICEINK_FULL_PROMPT\""
         case .codex:
-            return "TMPFILE=$(mktemp) && codex exec --skip-git-repo-check --output-last-message \"$TMPFILE\" \"$VOICEINK_FULL_PROMPT\" > /dev/null 2>&1 && cat \"$TMPFILE\" && rm \"$TMPFILE\""
+            return
+                "TMPFILE=$(mktemp) && codex exec --skip-git-repo-check --output-last-message \"$TMPFILE\" \"$VOICEINK_FULL_PROMPT\" > /dev/null 2>&1 && cat \"$TMPFILE\" && rm \"$TMPFILE\""
         case .copilot:
             return "copilot -p \"$VOICEINK_FULL_PROMPT\" -s --no-ask-user --available-tools=__none__ 2>/dev/null"
         }
@@ -36,8 +37,6 @@ final class LocalCLIService {
     static let selectedTemplateKey = "localCLISelectedTemplate"
     static let timeoutSecondsKey = "localCLITimeoutSeconds"
     static let defaultTimeoutSeconds: Double = 45
-    private static let shellPathQueue = DispatchQueue(label: "com.prakashjoshipax.voiceink.localcli.path")
-    private static var cachedInteractiveLoginPATH: String?
 
     var commandTemplate: String {
         didSet {
@@ -98,13 +97,15 @@ final class LocalCLIService {
 
     static func makeFullPrompt(systemPrompt: String, userPrompt: String) -> String {
         """
-        <SYSTEM_PROMPT>
+        # System Message
+        <SYSTEM_MESSAGE>
         \(systemPrompt)
-        </SYSTEM_PROMPT>
+        </SYSTEM_MESSAGE>
 
-        <USER_PROMPT>
+        # User Message Payload
+        <USER_MESSAGE_PAYLOAD>
         \(userPrompt)
-        </USER_PROMPT>
+        </USER_MESSAGE_PAYLOAD>
         """
     }
 
@@ -122,7 +123,7 @@ final class LocalCLIService {
                 process.arguments = ["-lc", commandTemplate]
 
                 var environment = ProcessInfo.processInfo.environment
-                environment["PATH"] = Self.preferredPATH(fallback: environment["PATH"])
+                environment["PATH"] = ShellCommandEnvironment.preferredPATH(fallback: environment["PATH"])
                 environment["VOICEINK_SYSTEM_PROMPT"] = systemPrompt
                 environment["VOICEINK_USER_PROMPT"] = userPrompt
                 environment["VOICEINK_FULL_PROMPT"] = fullPrompt
@@ -169,12 +170,14 @@ final class LocalCLIService {
                 let stderr = Self.cleanOutput(String(data: stderrData, encoding: .utf8) ?? "")
 
                 if process.terminationStatus != 0 {
-                    let looksLikeCommandNotFound = process.terminationStatus == 127 ||
-                        stderr.lowercased().contains("command not found")
+                    let looksLikeCommandNotFound =
+                        process.terminationStatus == 127 || stderr.lowercased().contains("command not found")
                     if looksLikeCommandNotFound {
-                        continuation.resume(throwing: LocalCLIError.commandNotFound(stderr.isEmpty ? commandTemplate : stderr))
+                        continuation.resume(
+                            throwing: LocalCLIError.commandNotFound(stderr.isEmpty ? commandTemplate : stderr))
                     } else {
-                        continuation.resume(throwing: LocalCLIError.nonZeroExit(status: Int(process.terminationStatus), stderr: stderr))
+                        continuation.resume(
+                            throwing: LocalCLIError.nonZeroExit(status: Int(process.terminationStatus), stderr: stderr))
                     }
                     return
                 }
@@ -187,74 +190,6 @@ final class LocalCLIService {
                 continuation.resume(returning: stdout)
             }
         }
-    }
-
-    private static func preferredPATH(fallback: String?) -> String {
-        shellPathQueue.sync {
-            if let cachedInteractiveLoginPATH {
-                return cachedInteractiveLoginPATH
-            }
-
-            if let discovered = discoverPATHFromInteractiveLoginShell() {
-                cachedInteractiveLoginPATH = discovered
-                return discovered
-            }
-
-            return fallback?.isEmpty == false ? fallback! : "/usr/bin:/bin:/usr/sbin:/sbin"
-        }
-    }
-
-    private static func discoverPATHFromInteractiveLoginShell() -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = [
-            "-ilc",
-            "echo __VOICEINK_PATH_START__; print -r -- $PATH; echo __VOICEINK_PATH_END__"
-        ]
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        let semaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in semaphore.signal() }
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-        let waitResult = semaphore.wait(timeout: .now() + 3)
-        if waitResult == .timedOut {
-            if process.isRunning {
-                process.terminate()
-            }
-            return nil
-        }
-
-        guard process.terminationStatus == 0 else {
-            return nil
-        }
-
-        let output = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let startMarker = "__VOICEINK_PATH_START__"
-        let endMarker = "__VOICEINK_PATH_END__"
-
-        guard let startRange = output.range(of: startMarker),
-              let endRange = output.range(of: endMarker, range: startRange.upperBound..<output.endIndex)
-        else {
-            return nil
-        }
-
-        let pathSection = output[startRange.upperBound..<endRange.lowerBound]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !pathSection.isEmpty else {
-            return nil
-        }
-
-        return pathSection
     }
 
     private static func cleanOutput(_ value: String) -> String {
@@ -273,20 +208,25 @@ enum LocalCLIError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .commandNotConfigured:
-            return "Local CLI command is not configured. Load a template or enter a command first."
+            return String(localized: "Local CLI command is not configured. Load a template or enter a command first.")
         case .commandNotFound(let details):
-            return "Local CLI command was not found. Use an absolute path or fix your shell PATH. Details: \(details)"
+            return String(
+                format: String(
+                    localized:
+                        "Local CLI command was not found. Use an absolute path or fix your shell PATH. Details: %@"),
+                details)
         case .timeout(let seconds):
-            return "Local CLI command timed out after \(Int(seconds)) seconds."
+            return String(format: String(localized: "Local CLI command timed out after %lld seconds."), Int64(seconds))
         case .nonZeroExit(let status, let stderr):
             if stderr.isEmpty {
-                return "Local CLI command failed with exit code \(status)."
+                return String(format: String(localized: "Local CLI command failed with exit code %lld."), Int64(status))
             }
-            return "Local CLI command failed with exit code \(status): \(stderr)"
+            return String(
+                format: String(localized: "Local CLI command failed with exit code %lld: %@"), Int64(status), stderr)
         case .emptyOutput:
-            return "Local CLI command returned empty output."
+            return String(localized: "Local CLI command returned empty output.")
         case .executionFailed(let message):
-            return "Failed to execute Local CLI command: \(message)"
+            return String(format: String(localized: "Failed to execute Local CLI command: %@"), message)
         }
     }
 }

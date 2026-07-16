@@ -10,13 +10,13 @@ enum ShortcutValidationError: Equatable {
     func notificationTitle(for shortcut: Shortcut) -> String {
         switch self {
         case .plainKeyRequiresModifier:
-            return "Shortcut not allowed: \(shortcut.displayString)"
+            return String(format: String(localized: "Shortcut not allowed: %@"), shortcut.displayString)
         case .shiftTypingKeyRequiresAdditionalModifier:
-            return "Shortcut not allowed: \(shortcut.displayString)"
+            return String(format: String(localized: "Shortcut not allowed: %@"), shortcut.displayString)
         case .reservedBySystem:
-            return "Shortcut reserved by macOS: \(shortcut.displayString)"
+            return String(format: String(localized: "Shortcut reserved by macOS: %@"), shortcut.displayString)
         case .alreadyUsedBy(let actionName):
-            return "Shortcut already used by \(actionName)"
+            return String(format: String(localized: "Shortcut already used by %@"), actionName)
         }
     }
 }
@@ -56,7 +56,8 @@ enum ShortcutValidator {
             }
 
             if shortcut.modifierFlags == [.shift],
-               shiftOnlyTypingKeyCodes.contains(shortcut.keyCode) {
+                shiftOnlyTypingKeyCodes.contains(shortcut.keyCode)
+            {
                 return .shiftTypingKeyRequiresAdditionalModifier
             }
 
@@ -64,7 +65,9 @@ enum ShortcutValidator {
         }
     }
 
-    private static func storedActionConflicting(with candidate: Shortcut, excluding actionToIgnore: ShortcutAction) -> ShortcutAction? {
+    private static func storedActionConflicting(with candidate: Shortcut, excluding actionToIgnore: ShortcutAction)
+        -> ShortcutAction?
+    {
         for action in allStoredActions where action != actionToIgnore {
             guard let existingShortcut = ShortcutStore.shortcut(for: action) else {
                 continue
@@ -79,7 +82,7 @@ enum ShortcutValidator {
     }
 
     private static func reservedActionConflicting(with shortcut: Shortcut) -> ShortcutAction? {
-        for (action, reservedShortcut) in reservedMiniRecorderShortcuts {
+        for (action, reservedShortcut) in reservedRecorderPanelShortcuts {
             if reservedShortcut.conflicts(with: shortcut) {
                 return action
             }
@@ -89,29 +92,25 @@ enum ShortcutValidator {
     }
 
     private static var allStoredActions: [ShortcutAction] {
-        ShortcutAction.legacyKeyboardShortcutActions +
-            PowerModeManager.shared.configurations.map { ShortcutAction.powerMode($0.id) }
+        var seenActions = Set<ShortcutAction>()
+        let actions =
+            ShortcutAction.legacyKeyboardShortcutActions
+            + ModeManager.shared.configurations.map { ShortcutAction.mode($0.id) }
+
+        return actions.filter { seenActions.insert($0).inserted }
     }
 
-    private static var reservedMiniRecorderShortcuts: [(ShortcutAction, Shortcut)] {
-        digitKeyCodes.enumerated().flatMap { index, keyCode in
-            [
-                (
-                    ShortcutAction.miniRecorderPrompt(index),
-                    Shortcut.key(keyCode: keyCode, modifierFlags: [.command])
-                ),
-                (
-                    ShortcutAction.miniRecorderPowerMode(index),
-                    Shortcut.key(keyCode: keyCode, modifierFlags: [.option])
-                )
-            ]
+    private static var reservedRecorderPanelShortcuts: [(ShortcutAction, Shortcut)] {
+        digitKeyCodes.enumerated().map { index, keyCode in
+            (
+                ShortcutAction.recorderPanelMode(index),
+                Shortcut.key(keyCode: keyCode, modifierFlags: [.option])
+            )
         }
     }
 
     private static var systemReservedShortcuts: [Shortcut] {
-        commonEditAndAppShortcuts +
-            sessionShortcuts +
-            essentialTextEditingShortcuts
+        commonEditAndAppShortcuts + sessionShortcuts + essentialTextEditingShortcuts
     }
 
     private static var commonEditAndAppShortcuts: [Shortcut] {
@@ -119,8 +118,6 @@ enum ShortcutValidator {
             shortcut(kVK_ANSI_A, [.command]),
             shortcut(kVK_ANSI_C, [.command]),
             shortcut(kVK_ANSI_F, [.command]),
-            shortcut(kVK_ANSI_G, [.command]),
-            shortcut(kVK_ANSI_G, [.shift, .command]),
             shortcut(kVK_ANSI_H, [.command]),
             shortcut(kVK_ANSI_H, [.option, .command]),
             shortcut(kVK_ANSI_M, [.command]),
@@ -138,7 +135,7 @@ enum ShortcutValidator {
             shortcut(kVK_ANSI_X, [.command]),
             shortcut(kVK_ANSI_Z, [.command]),
             shortcut(kVK_ANSI_Z, [.shift, .command]),
-            shortcut(kVK_ANSI_Comma, [.command])
+            shortcut(kVK_ANSI_Comma, [.command]),
         ]
     }
 
@@ -147,7 +144,7 @@ enum ShortcutValidator {
             shortcut(kVK_Escape, [.option, .command]),
             shortcut(kVK_ANSI_Q, [.control, .command]),
             shortcut(kVK_ANSI_Q, [.shift, .command]),
-            shortcut(kVK_ANSI_Q, [.option, .shift, .command])
+            shortcut(kVK_ANSI_Q, [.option, .shift, .command]),
         ]
     }
 
@@ -157,7 +154,7 @@ enum ShortcutValidator {
             shortcut(kVK_ANSI_I, [.command]),
             shortcut(kVK_ANSI_U, [.command]),
             shortcut(kVK_ANSI_D, [.control, .command]),
-            shortcut(kVK_Delete, [.option])
+            shortcut(kVK_Delete, [.option]),
         ]
     }
 
@@ -229,7 +226,7 @@ enum ShortcutValidator {
         UInt16(kVK_ANSI_KeypadMultiply),
         UInt16(kVK_ANSI_KeypadMinus),
         UInt16(kVK_ANSI_KeypadPlus),
-        UInt16(kVK_ANSI_KeypadEquals)
+        UInt16(kVK_ANSI_KeypadEquals),
     ]
 
     private static let digitKeyCodes: [UInt16] = [
@@ -242,6 +239,6 @@ enum ShortcutValidator {
         UInt16(kVK_ANSI_7),
         UInt16(kVK_ANSI_8),
         UInt16(kVK_ANSI_9),
-        UInt16(kVK_ANSI_0)
+        UInt16(kVK_ANSI_0),
     ]
 }

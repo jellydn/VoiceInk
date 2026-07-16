@@ -1,5 +1,5 @@
-import Foundation
 @preconcurrency import AVFoundation
+import Foundation
 import os
 
 final class SoundPlaybackEngine: @unchecked Sendable {
@@ -28,9 +28,9 @@ final class SoundPlaybackEngine: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self else { return }
 
-            self.startSound = self.makePlayer(from: defaultStartURL, volume: 0.4)
-            self.stopSound = self.makePlayer(from: defaultStopURL, volume: 0.4)
-            self.escSound = self.makePlayer(from: defaultEscURL, volume: 0.3)
+            self.startSound = self.makePlayer(from: defaultStartURL, volume: 0.3)
+            self.stopSound = self.makePlayer(from: defaultStopURL, volume: 0.3)
+            self.escSound = self.makePlayer(from: defaultEscURL, volume: 0.2)
             self.reloadCustomSoundsOnQueue(startURL: customStartURL, stopURL: customStopURL)
         }
     }
@@ -61,8 +61,8 @@ final class SoundPlaybackEngine: @unchecked Sendable {
             customStopSound?.stop()
         }
 
-        customStartSound = makePlayer(from: startURL, volume: 0.4)
-        customStopSound = makePlayer(from: stopURL, volume: 0.4)
+        customStartSound = makePlayer(from: startURL, volume: 0.3)
+        customStopSound = makePlayer(from: stopURL, volume: 0.3)
     }
 
     private func play(_ sound: Sound) {
@@ -92,7 +92,7 @@ final class SoundPlaybackEngine: @unchecked Sendable {
             player.prepareToPlay()
             return player
         } catch {
-            logger.error("Failed to load sound: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to load sound: \(error, privacy: .public)")
             return nil
         }
     }

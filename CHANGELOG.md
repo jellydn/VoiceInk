@@ -4,6 +4,23 @@ All notable changes by jellydn to the VoiceInk project are documented in this fi
 
 ## [2026-05] - Sync & Fixes
 
+### Upstream Sync (v1.79 → v2.0)
+Merged Beingpax/VoiceInk@69ed170 (VoiceInk 2.0). Highlights:
+- Dashboard replaces legacy Metrics UI (`DashboardView`, productivity hover #826)
+- FluidAudio transcription finalization and trailing silence padding (#824)
+- License persistence hardening upstream (#823); fork still forces always-licensed
+- Audio loopback channel exclusion (#818)
+- Window presentation and menu-bar flow updates (#816)
+- Swift source reformat; Nemotron language hints; recorder panel visibility
+
+Fork merge resolutions:
+- `LicenseViewModel`: kept always-licensed / `canUseApp` / no paywall (upstream 2.0 API retained where needed)
+- `VoiceInk.swift`: transcript + dictionary + stats stores; dictionary CloudKit disabled (`.none`)
+- Removed obsolete `MetricsView` / `MetricsContent` / `DashboardPromotionsSection` (upstream deleted)
+- `ContentView`: upstream 2.0 sidebar + `MainWindowNavigation`
+
+All prior fork modifications preserved after merge.
+
 ### Upstream Sync (v1.77 → v1.78)
 Rebased fork onto Beingpax/VoiceInk@3898b52 (52 new upstream commits). Includes:
 - Unified shortcut handling with custom recording shortcut (#706)

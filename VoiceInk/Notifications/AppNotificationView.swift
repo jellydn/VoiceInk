@@ -7,7 +7,7 @@ struct AppNotificationView: View {
     let onClose: () -> Void
     let onTap: (() -> Void)?
     var actionButton: (label: String, action: () -> Void)? = nil
-    
+
     @State private var progress: Double = 1.0
     @State private var timer: Timer?
 
@@ -28,10 +28,10 @@ struct AppNotificationView: View {
 
         var iconColor: Color {
             switch self {
-            case .error: return .red
-            case .warning: return .yellow
-            case .info: return .blue
-            case .success: return .green
+            case .error: return AppTheme.Status.error
+            case .warning: return AppTheme.Status.warning
+            case .info: return AppTheme.Status.info
+            case .success: return AppTheme.Status.success
             }
         }
     }
@@ -52,7 +52,7 @@ struct AppNotificationView: View {
                     .foregroundColor(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                
+
                 Spacer()
 
                 if let actionButton {
@@ -62,10 +62,10 @@ struct AppNotificationView: View {
                     }) {
                         Text(actionButton.label)
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(type.iconColor)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(type.iconColor.opacity(0.15))
+                            .background(Color.white.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -84,33 +84,33 @@ struct AppNotificationView: View {
         }
         .frame(minWidth: 220, maxWidth: 750, minHeight: 44)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
                 .fill(.clear)
                 .background(
                     ZStack {
                         // Base dark background
                         Color.black.opacity(0.9)
-                        
+
                         // Subtle gradient overlay
                         LinearGradient(
                             colors: [
                                 Color.black.opacity(0.95),
-                                Color(red: 0.15, green: 0.15, blue: 0.15).opacity(0.9)
+                                Color(red: 0.15, green: 0.15, blue: 0.15).opacity(0.9),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        
+
                         // Very subtle visual effect for depth
                         VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
                             .opacity(0.05)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous))
                 )
         )
         .overlay(
             // Subtle inner border
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
         )
         .overlay(
@@ -124,7 +124,7 @@ struct AppNotificationView: View {
                 }
                 .frame(height: 2)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous))
         )
         .onAppear {
             startProgressTimer()
@@ -139,12 +139,12 @@ struct AppNotificationView: View {
             }
         }
     }
-    
+
     private func startProgressTimer() {
         let updateInterval: TimeInterval = 0.1
         let totalSteps = duration / updateInterval
         let stepDecrement = 1.0 / totalSteps
-        
+
         timer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { _ in
             if progress > 0 {
                 progress = max(0, progress - stepDecrement)
@@ -155,4 +155,3 @@ struct AppNotificationView: View {
         }
     }
 }
-

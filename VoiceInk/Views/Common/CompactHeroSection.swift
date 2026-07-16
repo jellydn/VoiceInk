@@ -2,15 +2,15 @@ import SwiftUI
 
 struct CompactHeroSection: View {
     let icon: String
-    let title: String
-    let description: String
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
     var maxDescriptionWidth: CGFloat? = nil
 
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.system(size: 28))
-                .foregroundStyle(.blue)
+                .foregroundStyle(AppTheme.Status.infoStrong)
                 .symbolRenderingMode(.hierarchical)
 
             VStack(spacing: 6) {

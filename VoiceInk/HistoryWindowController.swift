@@ -1,6 +1,6 @@
-import SwiftUI
-import SwiftData
 import AppKit
+import SwiftData
+import SwiftUI
 
 class HistoryWindowController: NSObject, NSWindowDelegate {
     static let shared = HistoryWindowController()
@@ -14,6 +14,8 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
     }
 
     func showHistoryWindow(modelContainer: ModelContainer, engine: VoiceInkEngine) {
+        AppPresentationPolicy.activateForUserFacingWindow(reason: "HistoryWindow")
+
         if let existingWindow = historyWindow {
             if existingWindow.isMiniaturized {
                 existingWindow.deminiaturize(nil)
@@ -46,12 +48,13 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
         )
 
         window.contentViewController = hostingController
-        window.title = "VoiceInk — Transcription History"
+        window.title = String(localized: "History")
         window.identifier = windowIdentifier
         window.delegate = self
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .visible
-        window.backgroundColor = NSColor.windowBackgroundColor
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.fullScreenPrimary]
         window.minSize = NSSize(width: 1150, height: 700)
@@ -68,14 +71,16 @@ class HistoryWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              window.identifier == windowIdentifier else { return }
+            window.identifier == windowIdentifier
+        else { return }
 
         historyWindow = nil
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              window.identifier == windowIdentifier else { return }
-        NSApplication.shared.activate(ignoringOtherApps: true)
+            window.identifier == windowIdentifier
+        else { return }
+        AppPresentationPolicy.activateForUserFacingWindow(reason: "HistoryWindowDidBecomeKey")
     }
 }

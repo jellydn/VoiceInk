@@ -17,23 +17,17 @@ final class LicenseManager {
     // MARK: - License Key
 
     var licenseKey: String? {
-        get { keychain.getString(forKey: licenseKeyIdentifier, syncable: false) }
-        set {
-            if let value = newValue {
-                keychain.save(value, forKey: licenseKeyIdentifier, syncable: false)
-            } else {
-                keychain.delete(forKey: licenseKeyIdentifier, syncable: false)
-            }
-        }
+        keychain.getString(forKey: licenseKeyIdentifier, syncable: false)
     }
 
     // MARK: - Trial Start Date
 
-    var trialStartDate: Date? {
+    private(set) var trialStartDate: Date? {
         get {
             guard let data = keychain.getData(forKey: trialStartDateIdentifier, syncable: false),
-                  let timestamp = String(data: data, encoding: .utf8),
-                  let timeInterval = Double(timestamp) else {
+                let timestamp = String(data: data, encoding: .utf8),
+                let timeInterval = Double(timestamp)
+            else {
                 return nil
             }
             return Date(timeIntervalSince1970: timeInterval)
@@ -48,23 +42,77 @@ final class LicenseManager {
         }
     }
 
+    @discardableResult
+    func startTrialIfNeeded() -> Bool {
+        guard trialStartDate == nil else {
+            return false
+        }
+
+        trialStartDate = Date()
+        return true
+    }
+
     // MARK: - Activation ID
 
     var activationId: String? {
-        get { keychain.getString(forKey: activationIdIdentifier, syncable: false) }
-        set {
-            if let value = newValue {
-                keychain.save(value, forKey: activationIdIdentifier, syncable: false)
-            } else {
-                keychain.delete(forKey: activationIdIdentifier, syncable: false)
-            }
+        keychain.getString(forKey: activationIdIdentifier, syncable: false)
+    }
+
+    func storeLicense(key: String, activationId: String?) -> Bool {
+        let previousKey = licenseKey
+        let previousActivationId = self.activationId
+
+        guard keychain.save(key, forKey: licenseKeyIdentifier, syncable: false) else {
+            return false
         }
+
+        let savedActivation = writeCredential(activationId, forKey: activationIdIdentifier)
+        guard savedActivation,
+            licenseKey == key,
+            self.activationId == activationId
+        else {
+            if !restoreLicense(key: previousKey, activationId: previousActivationId) {
+                logger.error("Failed to restore previous license credentials after a storage failure")
+            }
+            return false
+        }
+
+        return true
+    }
+
+    private func restoreLicense(key: String?, activationId: String?) -> Bool {
+        let restoredKey = writeCredential(key, forKey: licenseKeyIdentifier)
+        let restoredActivation = writeCredential(activationId, forKey: activationIdIdentifier)
+
+        guard restoredKey,
+            restoredActivation,
+            licenseKey == key,
+            self.activationId == activationId
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    private func writeCredential(_ value: String?, forKey identifier: String) -> Bool {
+        if let value {
+            return keychain.save(value, forKey: identifier, syncable: false)
+        }
+
+        return keychain.delete(forKey: identifier, syncable: false)
+    }
+
+    @discardableResult
+    func removeStoredLicense() -> Bool {
+        let removedKey = keychain.delete(forKey: licenseKeyIdentifier, syncable: false)
+        let removedActivation = keychain.delete(forKey: activationIdIdentifier, syncable: false)
+        return removedKey && removedActivation
     }
 
     /// Removes all license data (for license removal/reset).
     func removeAll() {
-        licenseKey = nil
+        removeStoredLicense()
         trialStartDate = nil
-        activationId = nil
     }
 }

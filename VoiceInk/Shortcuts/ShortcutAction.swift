@@ -9,11 +9,9 @@ enum ShortcutAction: Hashable {
     case cancelRecorder
     case openHistoryWindow
     case quickAddToDictionary
-    case toggleEnhancement
-    case powerMode(UUID)
-    case miniRecorderEscape
-    case miniRecorderPrompt(Int)
-    case miniRecorderPowerMode(Int)
+    case mode(UUID)
+    case recorderPanelEscape
+    case recorderPanelMode(Int)
 
     var userDefaultsKey: String {
         "Shortcut_\(storageName)"
@@ -21,7 +19,7 @@ enum ShortcutAction: Hashable {
 
     var isStored: Bool {
         switch self {
-        case .miniRecorderEscape, .miniRecorderPrompt, .miniRecorderPowerMode:
+        case .recorderPanelEscape, .recorderPanelMode:
             return false
         default:
             return true
@@ -46,51 +44,47 @@ enum ShortcutAction: Hashable {
             return "openHistoryWindow"
         case .quickAddToDictionary:
             return "quickAddToDictionary"
-        case .toggleEnhancement:
-            return "toggleEnhancement"
-        case .powerMode(let id):
-            return "powerMode_\(id.uuidString)"
-        case .miniRecorderEscape:
-            return "miniRecorderEscape"
-        case .miniRecorderPrompt(let index):
-            return "miniRecorderPrompt_\(index)"
-        case .miniRecorderPowerMode(let index):
-            return "miniRecorderPowerMode_\(index)"
+        case .mode(let id):
+            return "mode_\(id.uuidString)"
+        case .recorderPanelEscape:
+            return "recorderPanelEscape"
+        case .recorderPanelMode(let index):
+            return "recorderPanelMode_\(index)"
         }
     }
 
     var displayName: String {
         switch self {
         case .primaryRecording:
-            return "Primary Shortcut"
+            return String(localized: "Primary Shortcut")
         case .secondaryRecording:
-            return "Secondary Shortcut"
+            return String(localized: "Secondary Shortcut")
         case .pasteLastTranscription:
-            return "Paste Last Transcription"
+            return String(localized: "Paste Last Transcription")
         case .pasteLastEnhancement:
-            return "Paste Last Enhanced Transcription"
+            return String(localized: "Paste Last Enhanced Transcription")
         case .retryLastTranscription:
-            return "Retry Last Transcription"
+            return String(localized: "Retry Last Transcription")
         case .cancelRecorder:
-            return "Cancel Recording"
+            return String(localized: "Cancel Recording")
         case .openHistoryWindow:
-            return "Open History Window"
+            return String(localized: "Open History Window")
         case .quickAddToDictionary:
-            return "Quick Add to Dictionary"
-        case .toggleEnhancement:
-            return "Toggle Enhancement"
-        case .powerMode(let id):
-            if let config = PowerModeManager.shared.getConfiguration(with: id) {
-                return "\(config.name) Power Mode"
+            return String(localized: "Quick Add to Dictionary")
+        case .mode(let id):
+            if let config = ModeManager.shared.getConfiguration(with: id) {
+                return String(format: String(localized: "%@ Mode"), config.name)
             }
 
-            return "Power Mode"
-        case .miniRecorderEscape:
-            return "Mini Recorder Cancel"
-        case .miniRecorderPrompt(let index):
-            return "Select Prompt \(Self.displayNumber(forMiniRecorderIndex: index))"
-        case .miniRecorderPowerMode(let index):
-            return "Select Power Mode \(Self.displayNumber(forMiniRecorderIndex: index))"
+            if let template = StarterModeCatalog.templates.first(where: { $0.id == id }) {
+                return String(format: String(localized: "%@ Mode"), template.name)
+            }
+
+            return String(localized: "Mode")
+        case .recorderPanelEscape:
+            return String(localized: "Recorder Cancel")
+        case .recorderPanelMode(let index):
+            return String(format: String(localized: "Select Mode %@"), Self.displayNumber(forRecorderPanelIndex: index))
         }
     }
 
@@ -99,12 +93,11 @@ enum ShortcutAction: Hashable {
         .pasteLastEnhancement,
         .retryLastTranscription,
         .openHistoryWindow,
-        .quickAddToDictionary
+        .quickAddToDictionary,
     ]
 
-    static let miniRecorderStoredActions: [Self] = [
-        .cancelRecorder,
-        .toggleEnhancement
+    static let recorderPanelStoredActions: [Self] = [
+        .cancelRecorder
     ]
 
     static let legacyKeyboardShortcutActions: [Self] = [
@@ -116,10 +109,9 @@ enum ShortcutAction: Hashable {
         .cancelRecorder,
         .openHistoryWindow,
         .quickAddToDictionary,
-        .toggleEnhancement
     ]
 
-    private static func displayNumber(forMiniRecorderIndex index: Int) -> String {
+    private static func displayNumber(forRecorderPanelIndex index: Int) -> String {
         index == 9 ? "10" : "\(index + 1)"
     }
 }

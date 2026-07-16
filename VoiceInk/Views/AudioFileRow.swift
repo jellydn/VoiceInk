@@ -81,9 +81,9 @@ struct AudioFileRow: View {
 
             Spacer()
 
-            Text(phase.rawValue)
+            Text(LocalizedStringKey(phase.rawValue))
                 .font(.caption)
-                .foregroundColor(.accentColor)
+                .foregroundColor(AppTheme.Accent.primary)
         }
     }
 
@@ -93,7 +93,7 @@ struct AudioFileRow: View {
     private var completedRows: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
+                .foregroundColor(AppTheme.Status.positive)
 
             Text(item.filename)
                 .foregroundColor(.primary)
@@ -140,10 +140,11 @@ struct AudioFileRow: View {
             }
 
             ScrollView {
-                Text(displayText)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                MarkdownContentView(
+                    displayText,
+                    fontSize: 14,
+                    foregroundColor: AppTheme.Text.primary
+                )
             }
             .frame(maxHeight: 350)
 
@@ -167,14 +168,14 @@ struct AudioFileRow: View {
         Button {
             selectedTab = tab
         } label: {
-            Text(tab.rawValue)
+            Text(LocalizedStringKey(tab.rawValue))
                 .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
-                .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
+                .foregroundColor(selectedTab == tab ? AppTheme.Accent.primary : .secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selectedTab == tab ? Color.accentColor.opacity(0.12) : Color.clear)
+                        .fill(selectedTab == tab ? AppTheme.Accent.fill : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -185,7 +186,7 @@ struct AudioFileRow: View {
     private func failedRow(message: String) -> some View {
         HStack {
             Image(systemName: "exclamationmark.circle.fill")
-                .foregroundColor(.red)
+                .foregroundColor(AppTheme.Status.error)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.filename)
@@ -194,7 +195,7 @@ struct AudioFileRow: View {
 
                 Text(message)
                     .font(.caption)
-                    .foregroundColor(.red.opacity(0.8))
+                    .foregroundColor(AppTheme.Status.error.opacity(0.80))
                     .lineLimit(2)
             }
 

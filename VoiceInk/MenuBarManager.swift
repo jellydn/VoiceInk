@@ -1,27 +1,34 @@
-import SwiftUI
-import SwiftData
 import AppKit
 import OSLog
+import SwiftData
+import SwiftUI
 
 class MenuBarManager: ObservableObject {
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarManager")
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarWindowFlow")
+
     @Published var isMenuBarOnly: Bool {
         didSet {
             UserDefaults.standard.set(isMenuBarOnly, forKey: "IsMenuBarOnly")
-            updateAppActivationPolicy()
+            applyActivationPolicy(logPreferenceChange: true)
         }
     }
 
     private var modelContainer: ModelContainer?
     private var engine: VoiceInkEngine?
+    private var configuredActivationPolicy: NSApplication.ActivationPolicy {
+        isMenuBarOnly ? .accessory : .regular
+    }
 
     init() {
         self.isMenuBarOnly = UserDefaults.standard.bool(forKey: "IsMenuBarOnly")
-        updateAppActivationPolicy()
+        logger.notice(
+            "🧭 MenuBarManager initialized. isMenuBarOnly=\(self.isMenuBarOnly, privacy: .public); activationPolicy=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public)"
+        )
+        applyActivationPolicy()
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(windowDidClose),
+            selector: #selector(userFacingWindowWillClose),
             name: NSWindow.willCloseNotification,
             object: nil
         )
@@ -31,53 +38,50 @@ class MenuBarManager: ObservableObject {
         NotificationCenter.default.removeObserver(self)
     }
 
-    @objc private func windowDidClose(_ notification: Notification) {
-        guard isMenuBarOnly else { return }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            let hasVisibleWindows = NSApplication.shared.windows.contains {
-                $0.isVisible && $0.level == .normal && !$0.styleMask.contains(.nonactivatingPanel)
-            }
-            if !hasVisibleWindows && NSApplication.shared.activationPolicy() != .accessory {
-                self?.logger.notice("windowDidClose: no visible windows, switching to .accessory policy")
-                NSApplication.shared.setActivationPolicy(.accessory)
-            }
+    @objc private func userFacingWindowWillClose(_ notification: Notification) {
+        guard isMenuBarOnly,
+            let window = notification.object as? NSWindow,
+            window.level == .normal,
+            window.styleMask.contains(.titled)
+        else {
+            return
         }
+
+        AppPresentationPolicy.restoreAccessoryIfNeededAfterUserFacingWindowClosed(
+            reason: "userFacingWindowWillClose"
+        )
     }
 
     func configure(modelContainer: ModelContainer, engine: VoiceInkEngine) {
         self.modelContainer = modelContainer
         self.engine = engine
+        logger.notice(
+            "🧭 MenuBarManager configured. hasModelContainer=\((self.modelContainer != nil), privacy: .public); hasEngine=\((self.engine != nil), privacy: .public)"
+        )
     }
-    
+
     func toggleMenuBarOnly() {
         isMenuBarOnly.toggle()
     }
-    
-    func applyActivationPolicy() {
-        updateAppActivationPolicy()
-    }
-    
-    func focusMainWindow() {
-        NSApplication.shared.setActivationPolicy(.regular)
-        logger.notice("focusMainWindow: activation policy set to .regular")
-        if WindowManager.shared.showMainWindow() == nil {
-            logger.error("focusMainWindow: showMainWindow returned nil")
-        }
-    }
-    
-    private func updateAppActivationPolicy() {
+
+    func applyActivationPolicy(logPreferenceChange: Bool = false) {
+        let changedPreferenceValue = isMenuBarOnly
+
         let applyPolicy = { [weak self] in
             guard let self else { return }
-            let application = NSApplication.shared
+            if logPreferenceChange {
+                self.logger.notice(
+                    "🧭 Menu-bar-only preference changed. newValue=\(changedPreferenceValue, privacy: .public); activationPolicyBefore=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public); snapshot=\(WindowDiagnostics.windowSnapshot(), privacy: .public)"
+                )
+            }
+
+            let didSet = NSApplication.shared.setActivationPolicy(self.configuredActivationPolicy)
+            self.logger.notice(
+                "🧭 Applied menu-bar activation policy. isMenuBarOnly=\(self.isMenuBarOnly, privacy: .public); desiredPolicy=\(WindowDiagnostics.activationPolicyDescription(self.configuredActivationPolicy), privacy: .public); success=\(didSet, privacy: .public); activationPolicyAfter=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public)"
+            )
+
             if self.isMenuBarOnly {
-                self.logger.notice("updateAppActivationPolicy: switching to .accessory (dock icon hidden)")
-                application.setActivationPolicy(.accessory)
                 WindowManager.shared.hideMainWindow()
-            } else {
-                self.logger.notice("updateAppActivationPolicy: switching to .regular (dock icon visible)")
-                application.setActivationPolicy(.regular)
-                WindowManager.shared.showMainWindow()
             }
         }
 
@@ -87,43 +91,53 @@ class MenuBarManager: ObservableObject {
             DispatchQueue.main.async(execute: applyPolicy)
         }
     }
-    
-    func openMainWindowAndNavigate(to destination: String) {
-        logger.notice("openMainWindowAndNavigate: requested destination=\(destination, privacy: .public), isMenuBarOnly=\(self.isMenuBarOnly, privacy: .public)")
 
-        NSApplication.shared.setActivationPolicy(.regular)
-        logger.notice("openMainWindowAndNavigate: activation policy set to .regular")
+    func activateForPresentedWindow() {
+        activateForPresentedWindow(reason: "Presented Window")
+    }
 
-        guard WindowManager.shared.showMainWindow() != nil else {
-            logger.error("openMainWindowAndNavigate: showMainWindow returned nil — cannot navigate to \(destination, privacy: .public)")
-            return
+    func activateForPresentedWindow(reason: String) {
+        let activate = { [weak self] in
+            guard let self else { return }
+            self.logger.notice(
+                "🧭 Full window presentation requested. reason=\(reason, privacy: .public); isMenuBarOnlyPreference=\(self.isMenuBarOnly, privacy: .public); activationPolicyBefore=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public); snapshot=\(WindowDiagnostics.windowSnapshot(), privacy: .public)"
+            )
+            AppPresentationPolicy.activateForUserFacingWindow(reason: reason)
         }
 
-        logger.notice("openMainWindowAndNavigate: window shown, posting navigation notification for \(destination, privacy: .public)")
-
-        // Post a notification to navigate to the desired destination
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            NotificationCenter.default.post(
-                name: .navigateToDestination,
-                object: nil,
-                userInfo: ["destination": destination]
-            )
-            self?.logger.notice("openMainWindowAndNavigate: navigation notification posted for \(destination, privacy: .public)")
+        if Thread.isMainThread {
+            activate()
+        } else {
+            DispatchQueue.main.async(execute: activate)
         }
     }
 
     func openHistoryWindow() {
         guard let modelContainer = modelContainer,
-              let engine = engine else {
-            logger.error("openHistoryWindow: dependencies not configured (modelContainer=\(self.modelContainer != nil, privacy: .public), engine=\(self.engine != nil, privacy: .public))")
+            let engine = engine
+        else {
+            logger.error(
+                "🧭 History window requested before MenuBarManager dependencies were configured. hasModelContainer=\((self.modelContainer != nil), privacy: .public); hasEngine=\((self.engine != nil), privacy: .public)"
+            )
             return
         }
-        logger.notice("openHistoryWindow: opening history window")
-        NSApplication.shared.setActivationPolicy(.regular)
-        logger.notice("openHistoryWindow: activation policy set to .regular")
-        HistoryWindowController.shared.showHistoryWindow(
-            modelContainer: modelContainer,
-            engine: engine
-        )
+
+        let openWindow = { [weak self] in
+            self?.logger.notice(
+                "🧭 History window requested from menu bar. isMenuBarOnly=\(self?.isMenuBarOnly ?? false, privacy: .public); activationPolicy=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public); snapshot=\(WindowDiagnostics.windowSnapshot(), privacy: .public)"
+            )
+            self?.activateForPresentedWindow(reason: "History")
+
+            HistoryWindowController.shared.showHistoryWindow(
+                modelContainer: modelContainer,
+                engine: engine
+            )
+        }
+
+        if Thread.isMainThread {
+            openWindow()
+        } else {
+            DispatchQueue.main.async(execute: openWindow)
+        }
     }
 }

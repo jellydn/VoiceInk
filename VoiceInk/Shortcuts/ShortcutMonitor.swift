@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import os
 
 final class ShortcutMonitor {
     fileprivate enum EventKind {
@@ -23,8 +24,8 @@ final class ShortcutMonitor {
     private var onShortcutInterrupted: ((ShortcutAction, TimeInterval) -> Void)?
     private var eventTap: CFMachPort?
     private var eventTapRunLoopSource: CFRunLoopSource?
+    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ShortcutMonitor")
 
-    private static var hasRequestedListenEventAccess = false
     private static let shortcutInterruptionWindow: TimeInterval = 1.0
 
     deinit {
@@ -76,10 +77,6 @@ final class ShortcutMonitor {
     }
 
     private func installEventTap() -> Bool {
-        guard Self.hasListenEventAccess() else {
-            return false
-        }
-
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else {
                 return Unmanaged.passUnretained(event)
@@ -99,19 +96,23 @@ final class ShortcutMonitor {
             return shouldSuppress ? nil : Unmanaged.passUnretained(event)
         }
 
-        guard let eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: Self.eventMask,
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
+        guard
+            let eventTap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: Self.eventMask,
+                callback: callback,
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            )
+        else {
+            logger.error("Failed to install global shortcut event tap")
             return false
         }
 
         guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0) else {
             CFMachPortInvalidate(eventTap)
+            logger.error("Failed to create global shortcut event tap run loop source")
             return false
         }
 
@@ -120,19 +121,6 @@ final class ShortcutMonitor {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
         return true
-    }
-
-    private static func hasListenEventAccess() -> Bool {
-        if CGPreflightListenEventAccess() {
-            return true
-        }
-
-        guard !hasRequestedListenEventAccess else {
-            return false
-        }
-
-        hasRequestedListenEventAccess = true
-        return CGRequestListenEventAccess()
     }
 
     private func handleCGEvent(type: CGEventType, event: CGEvent) -> Bool {
@@ -311,11 +299,11 @@ final class ShortcutMonitor {
 
         for action in interruptibleActions {
             guard var state = shortcuts[action],
-                  state.isDown,
-                  !state.isInterrupted,
-                  let pressedAt = state.pressedAt,
-                  eventTime - pressedAt <= Self.shortcutInterruptionWindow,
-                  state.shortcut.isInterruptedByAdditionalKeyDown(keyCode: keyCode)
+                state.isDown,
+                !state.isInterrupted,
+                let pressedAt = state.pressedAt,
+                eventTime - pressedAt <= Self.shortcutInterruptionWindow,
+                state.shortcut.isInterruptedByAdditionalKeyDown(keyCode: keyCode)
             else {
                 continue
             }
@@ -347,7 +335,7 @@ final class ShortcutMonitor {
     private static let eventMask: CGEventMask = [
         CGEventType.keyDown,
         CGEventType.keyUp,
-        CGEventType.flagsChanged
+        CGEventType.flagsChanged,
     ].reduce(CGEventMask(0)) { mask, type in
         mask | (CGEventMask(1) << Int(type.rawValue))
     }

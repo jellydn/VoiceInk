@@ -3,16 +3,30 @@ import SwiftData
 import os
 
 /// Handles the full post-recording pipeline:
-/// transcribe → filter → format → word-replace → prompt-detect → AI enhance → start paste + dismiss → save
+/// transcribe → filter → format → word-replace → AI enhance → deliver → save
 @MainActor
 class TranscriptionPipeline {
+    struct AssistantHooks {
+        let isFollowUp: Bool
+        let sendFollowUp: (String, Transcription) async -> Void
+        let startResponse: (String, EnhancementRuntimeConfiguration) async -> Void
+        let showResponse: (String, String?) async -> Void
+        let failResponse: (String) async -> Void
+
+        static let inactive = AssistantHooks(
+            isFollowUp: false,
+            sendFollowUp: { _, _ in },
+            startResponse: { _, _ in },
+            showResponse: { _, _ in },
+            failResponse: { _ in }
+        )
+    }
+
     private let modelContext: ModelContext
     private let serviceRegistry: TranscriptionServiceRegistry
     private let enhancementService: AIEnhancementService?
-    private let promptDetectionService = PromptDetectionService()
+    private let delivery = TranscriptionDelivery()
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionPipeline")
-
-    var licenseViewModel: LicenseViewModel
 
     init(
         modelContext: ModelContext,
@@ -22,50 +36,43 @@ class TranscriptionPipeline {
         self.modelContext = modelContext
         self.serviceRegistry = serviceRegistry
         self.enhancementService = enhancementService
-        self.licenseViewModel = LicenseViewModel()
     }
 
     /// Run the full pipeline for a given transcription record.
     /// - Parameters:
     ///   - transcription: The pending Transcription SwiftData object to populate and save.
     ///   - audioURL: The recorded audio file.
-    ///   - model: The transcription model to use.
+    ///   - transcriptionConfiguration: Mode-resolved transcription engine settings for this phase.
     ///   - session: An active streaming session if one was prepared, otherwise nil.
     ///   - onStateChange: Called when the pipeline moves to a new recording state (e.g. `.enhancing`).
     ///   - shouldCancel: Returns true if the user requested cancellation.
     ///   - onCancel: Called when cancellation is detected to cancel active session state.
-    ///   - onDismiss: Called as soon as paste is initiated to dismiss the recorder panel.
+    ///   - onDismiss: Called when delivery should close the recorder panel.
     func run(
         transcription: Transcription,
         audioURL: URL,
-        model: any TranscriptionModel,
+        transcriptionConfiguration: TranscriptionRuntimeConfiguration,
+        formattingConfiguration resolveFormattingConfiguration: @escaping () -> TranscriptionFormattingConfiguration,
         session: TranscriptionSession?,
+        triggerWordModeSelection: @escaping (String) -> String? = { _ in nil },
+        enhancementConfiguration: @escaping () -> EnhancementRuntimeConfiguration?,
+        recordingContextSnapshot: @escaping () async -> RecordingContextSnapshot? = { nil },
+        outputConfiguration: @escaping () -> OutputRuntimeConfiguration,
         onStateChange: @escaping (RecordingState) -> Void,
         shouldCancel: () -> Bool,
         onCancel: @escaping () async -> Void,
-        onDismiss: @escaping () async -> Void
+        onDismiss: @escaping () async -> Void,
+        assistant: AssistantHooks = .inactive
     ) async {
-        var finalPastedText: String?
-        var promptDetectionResult: PromptDetectionService.PromptDetectionResult?
+        let model = transcriptionConfiguration.model
+        var finalText: String?
         var didInsertSessionMetric = false
-
-        func restorePromptDetectionSettingsIfNeeded() async {
-            if let result = promptDetectionResult,
-               let enhancementService,
-               result.shouldEnableAI {
-                await promptDetectionService.restoreOriginalSettings(result, to: enhancementService)
-            }
-        }
-
-        func restorePromptDetectionSettingsAndDismiss(afterRestore: () -> Void = {}) async {
-            await restorePromptDetectionSettingsIfNeeded()
-            afterRestore()
-            await onDismiss()
-        }
+        var responseError: String?
+        var outputForDelivery: OutputRuntimeConfiguration?
+        var responseConfig: EnhancementRuntimeConfiguration?
 
         func finishCanceledTranscription() async {
             await onCancel()
-            await restorePromptDetectionSettingsIfNeeded()
 
             let canceledDuration: TimeInterval?
             if transcription.duration > 0 {
@@ -83,7 +90,7 @@ class TranscriptionPipeline {
             do {
                 try modelContext.save()
             } catch {
-                logger.error("Failed to save canceled transcription: \(error.localizedDescription, privacy: .public)")
+                logger.error("Failed to save canceled transcription: \(error, privacy: .public)")
             }
         }
 
@@ -98,21 +105,42 @@ class TranscriptionPipeline {
             if let session {
                 text = try await session.transcribe(audioURL: audioURL)
             } else {
-                text = try await serviceRegistry.transcribe(audioURL: audioURL, model: model)
+                text = try await serviceRegistry.transcribe(
+                    audioURL: audioURL,
+                    model: model,
+                    context: transcriptionConfiguration.requestContext
+                )
             }
             text = TranscriptionOutputFilter.filter(text)
             let transcriptionDuration = Date().timeIntervalSince(transcriptionStart)
 
-            if shouldCancel() { await finishCanceledTranscription(); return }
+            if shouldCancel() {
+                await finishCanceledTranscription()
+                return
+            }
 
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if UserDefaults.standard.bool(forKey: "IsTextFormattingEnabled") {
-                text = WhisperTextFormatter.format(text)
+            if !assistant.isFollowUp,
+                let processedText = triggerWordModeSelection(text)
+            {
+                text = processedText
+            }
+
+            let formattingConfiguration = resolveFormattingConfiguration()
+            let resolvedEnhancementConfiguration = enhancementConfiguration()
+            let resolvedOutputConfiguration = outputConfiguration()
+            let modeMetadata = metadata(
+                for: formattingConfiguration.mode ?? resolvedEnhancementConfiguration?.mode
+                    ?? resolvedOutputConfiguration.mode ?? transcriptionConfiguration.mode
+            )
+
+            if formattingConfiguration.isTextFormattingEnabled {
+                text = ParagraphFormatter.format(text)
             }
 
             text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
-            let cleanedText = TranscriptionOutputFilter.applyUserCleanupPreferences(text)
+            let cleanedText = text
 
             let actualDuration = await AudioFileMetadata.duration(for: audioURL)
 
@@ -120,48 +148,78 @@ class TranscriptionPipeline {
             transcription.duration = actualDuration
             transcription.transcriptionModelName = model.displayName
             transcription.transcriptionDuration = transcriptionDuration
-            finalPastedText = cleanedText
+            transcription.modeName = modeMetadata.name
+            transcription.modeEmoji = modeMetadata.emoji
+            finalText = cleanedText
 
-            if let enhancementService, enhancementService.isConfigured {
-                let detectionResult = promptDetectionService.analyzeText(text, with: enhancementService)
-                promptDetectionResult = detectionResult
-                await promptDetectionService.applyDetectionResult(detectionResult, to: enhancementService)
-            }
+            if !assistant.isFollowUp {
+                let shouldRespondInRecorder =
+                    resolvedOutputConfiguration.outputMode == .respond
+                    && resolvedEnhancementConfiguration?.isEnabled == true
+                    && resolvedEnhancementConfiguration.map { configuration in
+                        enhancementService?.isConfigured(for: configuration) == true
+                    } == true
+                outputForDelivery = resolvedOutputConfiguration
+                responseConfig = shouldRespondInRecorder ? resolvedEnhancementConfiguration : nil
 
-            let isSkipShortEnhancementEnabled = UserDefaults.standard.bool(forKey: "SkipShortEnhancement")
-            let savedThreshold = UserDefaults.standard.integer(forKey: "ShortEnhancementWordThreshold")
-            let shortEnhancementWordThreshold = savedThreshold > 0 ? savedThreshold : 3
-            let shouldSkipEnhancement = isSkipShortEnhancementEnabled && WordCounter.count(in: text) <= shortEnhancementWordThreshold && !(promptDetectionResult?.shouldEnableAI == true)
+                let isSkipShortEnhancementEnabled = UserDefaults.standard.bool(forKey: "SkipShortEnhancement")
+                let savedThreshold = UserDefaults.standard.integer(forKey: "ShortEnhancementWordThreshold")
+                let shortEnhancementWordThreshold = savedThreshold > 0 ? savedThreshold : 3
+                let shouldSkipEnhancement =
+                    !shouldRespondInRecorder && isSkipShortEnhancementEnabled
+                    && WordCounter.count(in: text) <= shortEnhancementWordThreshold
 
-            if let enhancementService,
-               enhancementService.isEnhancementEnabled,
-               enhancementService.isConfigured,
-               !shouldSkipEnhancement {
-                if shouldCancel() { await finishCanceledTranscription(); return }
-
-                onStateChange(.enhancing)
-                let textForAI = promptDetectionResult?.processedText ?? text
-
-                do {
-                    let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(textForAI)
-                    transcription.enhancedText = enhancedText
-                    transcription.aiEnhancementModelName = enhancementService.getAIService()?.currentModel
-                    transcription.promptName = promptName
-                    transcription.enhancementDuration = enhancementDuration
-                    transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
-                    transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
-                    finalPastedText = enhancedText
-                } catch {
-                    let errorDescription = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                    transcription.enhancedText = "Enhancement failed: \(errorDescription)"
-                    let shortReason = String(errorDescription.prefix(80))
-                    await MainActor.run {
-                        NotificationManager.shared.showNotification(
-                            title: "Enhancement failed: \(shortReason)",
-                            type: .warning
-                        )
+                if let enhancementService,
+                    let resolvedEnhancementConfiguration,
+                    resolvedEnhancementConfiguration.isEnabled,
+                    enhancementService.isConfigured(for: resolvedEnhancementConfiguration),
+                    !shouldSkipEnhancement
+                {
+                    if shouldCancel() {
+                        await finishCanceledTranscription()
+                        return
                     }
-                    if shouldCancel() { await finishCanceledTranscription(); return }
+
+                    onStateChange(.enhancing)
+                    let textForAI = text
+                    if shouldRespondInRecorder {
+                        await assistant.startResponse(textForAI, resolvedEnhancementConfiguration)
+                    }
+
+                    do {
+                        let contextSnapshot = await recordingContextSnapshot()
+                        let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(
+                            textForAI,
+                            configuration: resolvedEnhancementConfiguration,
+                            contextSnapshot: contextSnapshot
+                        )
+                        transcription.enhancedText = enhancedText
+                        transcription.aiEnhancementModelName =
+                            resolvedEnhancementConfiguration.modelName
+                            ?? resolvedEnhancementConfiguration.provider?.defaultModel
+                        transcription.promptName = promptName
+                        transcription.enhancementDuration = enhancementDuration
+                        transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
+                        transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
+                        finalText = enhancedText
+                    } catch {
+                        let errorDescription =
+                            (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                        transcription.enhancedText = String(
+                            format: String(localized: "Enhancement failed: %@"), errorDescription)
+                        responseError = errorDescription
+                        let shortReason = String(errorDescription.prefix(80))
+                        await MainActor.run {
+                            NotificationManager.shared.showNotification(
+                                title: String(format: String(localized: "Enhancement failed: %@"), shortReason),
+                                type: .warning
+                            )
+                        }
+                        if shouldCancel() {
+                            await finishCanceledTranscription()
+                            return
+                        }
+                    }
                 }
             }
 
@@ -170,7 +228,8 @@ class TranscriptionPipeline {
             let errorDescription = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 
             if let nativeAppleError = error as? NativeAppleTranscriptionService.ServiceError,
-               case .assetDownloadRequired = nativeAppleError {
+                nativeAppleError.shouldShowNotification
+            {
                 await MainActor.run {
                     NotificationManager.shared.showNotification(
                         title: errorDescription,
@@ -180,7 +239,7 @@ class TranscriptionPipeline {
                 }
             }
 
-            transcription.text = "Transcription Failed: \(errorDescription)"
+            transcription.text = String(format: String(localized: "Transcription Failed: %@"), errorDescription)
             transcription.transcriptionStatus = TranscriptionStatus.failed.rawValue
         }
 
@@ -193,7 +252,7 @@ class TranscriptionPipeline {
                         in: modelContext
                     )
                 } catch {
-                    logger.error("Failed to record session metric: \(error.localizedDescription, privacy: .public)")
+                    logger.error("Failed to record session metric: \(error, privacy: .public)")
                 }
             }
 
@@ -204,7 +263,7 @@ class TranscriptionPipeline {
                 }
                 NotificationCenter.default.post(name: .transcriptionCompleted, object: transcription)
             } catch {
-                logger.error("Failed to save transcription: \(error.localizedDescription, privacy: .public)")
+                logger.error("Failed to save transcription: \(error, privacy: .public)")
             }
         }
 
@@ -213,32 +272,32 @@ class TranscriptionPipeline {
             return
         }
 
-        if var textToPaste = finalPastedText,
-           transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
-            if case .trialExpired = licenseViewModel.licenseState {
-                textToPaste = """
-                    Your trial has expired. Upgrade to VoiceInk Pro at tryvoiceink.com/buy
-                    \n\(textToPaste)
-                    """
-            }
-
-            let appendSpace = UserDefaults.standard.bool(forKey: "AppendTrailingSpace")
-            let pastedText = textToPaste + (appendSpace ? " " : "")
-            _ = await CursorPaster.startPasteAtCursor(pastedText).value
-            let autoSendKey = PowerModeManager.shared.currentActiveConfiguration?.autoSendKey
-            SoundManager.shared.playStopSound()
-            await restorePromptDetectionSettingsAndDismiss {
-                if let autoSendKey, autoSendKey.isEnabled {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        CursorPaster.performAutoSend(autoSendKey)
-                    }
-                }
-            }
-        } else {
-            await restorePromptDetectionSettingsAndDismiss()
-        }
+        await delivery.deliver(
+            TranscriptionDelivery.Request(
+                transcription: transcription,
+                text: finalText,
+                output: outputForDelivery ?? outputConfiguration(),
+                responseConfig: responseConfig,
+                responseError: responseError,
+                isAssistantFollowUp: assistant.isFollowUp
+            ),
+            actions: TranscriptionDelivery.Actions(
+                setState: onStateChange,
+                dismiss: onDismiss,
+                sendFollowUp: assistant.sendFollowUp,
+                showResponse: assistant.showResponse,
+                failResponse: assistant.failResponse
+            )
+        )
 
         saveTranscriptionAndPostCompletion()
+    }
+
+    private func metadata(for mode: ModeConfig?) -> (name: String?, emoji: String?) {
+        guard let mode, mode.isEnabled else {
+            return (nil, nil)
+        }
+
+        return (mode.name, mode.icon.value)
     }
 }

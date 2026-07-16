@@ -68,7 +68,8 @@ class TranscriptionModelManager: ObservableObject {
 
     func loadCurrentTranscriptionModel() {
         if let savedModelName = UserDefaults.standard.string(forKey: "CurrentTranscriptionModel"),
-           let savedModel = allAvailableModels.first(where: { $0.name == savedModelName }) {
+            let savedModel = allAvailableModels.first(where: { $0.name == savedModelName })
+        {
             guard isAvailableOnCurrentOS(savedModel) else {
                 UserDefaults.standard.removeObject(forKey: "CurrentTranscriptionModel")
                 currentTranscriptionModel = nil
@@ -85,7 +86,7 @@ class TranscriptionModelManager: ObservableObject {
     func setDefaultTranscriptionModel(_ model: any TranscriptionModel) {
         guard isAvailableOnCurrentOS(model) else {
             NotificationManager.shared.showNotification(
-                title: "\(model.displayName) requires macOS 26 or later",
+                title: String(format: String(localized: "%@ requires macOS 26 or later"), model.displayName),
                 type: .error
             )
             return
@@ -130,7 +131,8 @@ class TranscriptionModelManager: ObservableObject {
         allAvailableModels = models
 
         if let currentName = currentModelName,
-           let updatedModel = allAvailableModels.first(where: { $0.name == currentName }) {
+            let updatedModel = allAvailableModels.first(where: { $0.name == currentName })
+        {
             setDefaultTranscriptionModel(updatedModel)
         }
     }

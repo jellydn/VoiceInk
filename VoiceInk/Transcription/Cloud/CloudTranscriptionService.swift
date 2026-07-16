@@ -1,6 +1,6 @@
 import Foundation
-import SwiftData
 import LLMkit
+import SwiftData
 
 enum CloudTranscriptionError: Error, LocalizedError {
     case unsupportedProvider
@@ -15,21 +15,23 @@ enum CloudTranscriptionError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedProvider:
-            return "The model provider is not supported by this service."
+            return String(localized: "The model provider is not supported by this service.")
         case .missingAPIKey:
-            return "API key for this service is missing. Please configure it in the settings."
+            return String(localized: "API key for this service is missing. Please configure it in the settings.")
         case .invalidAPIKey:
-            return "The provided API key is invalid."
+            return String(localized: "The provided API key is invalid.")
         case .audioFileNotFound:
-            return "The audio file to transcribe could not be found."
+            return String(localized: "The audio file to transcribe could not be found.")
         case .apiRequestFailed(let statusCode, let message):
-            return "The API request failed with status code \(statusCode): \(message)"
+            return String(
+                format: String(localized: "The API request failed with status code %lld: %@"), Int64(statusCode),
+                message)
         case .networkError(let error):
-            return "A network error occurred: \(error.localizedDescription)"
+            return String(format: String(localized: "A network error occurred: %@"), error.localizedDescription)
         case .noTranscriptionReturned:
-            return "The API returned an empty or invalid response."
+            return String(localized: "The API returned an empty or invalid response.")
         case .dataEncodingError:
-            return "Failed to encode the request body."
+            return String(localized: "Failed to encode the request body.")
         }
     }
 }
@@ -42,17 +44,20 @@ class CloudTranscriptionService: TranscriptionService {
         self.modelContext = modelContext
     }
 
-    func transcribe(audioURL: URL, model: any TranscriptionModel) async throws -> String {
+    func transcribe(audioURL: URL, model: any TranscriptionModel, context: TranscriptionRequestContext) async throws
+        -> String
+    {
         let audioData = try loadAudioData(from: audioURL)
         let fileName = audioURL.lastPathComponent
-        let language = selectedLanguage()
+        let language = selectedLanguage(from: context)
 
         do {
             if model.provider == .custom {
                 guard let customModel = model as? CustomCloudModel else {
                     throw CloudTranscriptionError.unsupportedProvider
                 }
-                return try await openAICompatibleService.transcribe(audioURL: audioURL, model: customModel)
+                return try await openAICompatibleService.transcribe(
+                    audioURL: audioURL, model: customModel, context: context)
             }
 
             guard let cloudProvider = CloudProviderRegistry.provider(for: model.provider) else {
@@ -65,7 +70,6 @@ class CloudTranscriptionService: TranscriptionService {
                 apiKey: apiKey,
                 model: model.name,
                 language: language,
-                prompt: transcriptionPrompt(),
                 customVocabulary: getCustomDictionaryTerms()
             )
         } catch let error as CloudTranscriptionError {
@@ -93,14 +97,9 @@ class CloudTranscriptionService: TranscriptionService {
         return apiKey
     }
 
-    private func selectedLanguage() -> String? {
-        let lang = UserDefaults.standard.string(forKey: "SelectedLanguage") ?? "auto"
+    private func selectedLanguage(from context: TranscriptionRequestContext) -> String? {
+        let lang = context.language ?? "auto"
         return (lang == "auto" || lang.isEmpty) ? nil : lang
-    }
-
-    private func transcriptionPrompt() -> String? {
-        let prompt = UserDefaults.standard.string(forKey: "TranscriptionPrompt") ?? ""
-        return prompt.isEmpty ? nil : prompt
     }
 
     private func getCustomDictionaryTerms() -> [String] {

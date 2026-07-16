@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -7,8 +7,8 @@ class KeyablePanel: NSPanel {
 }
 
 class NotchRecorderPanel: KeyablePanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 
     init(contentRect: NSRect) {
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
@@ -21,6 +21,7 @@ class NotchRecorderPanel: KeyablePanel {
         )
 
         self.isFloatingPanel = true
+        self.canHide = false
         self.level = .statusBar + 3
         self.backgroundColor = .clear
         self.isOpaque = false
@@ -54,17 +55,18 @@ class NotchRecorderPanel: KeyablePanel {
 
         let notchWidth: CGFloat = {
             if let left = screen.auxiliaryTopLeftArea?.width,
-               let right = screen.auxiliaryTopRightArea?.width {
+                let right = screen.auxiliaryTopRightArea?.width
+            {
                 return screen.frame.width - left - right
             }
             return 180
         }()
 
-        let maxSideExpansion: CGFloat = 110
+        let maxSideExpansion: CGFloat = 240
         let sideMargin: CGFloat = 10
         let totalWidth = notchWidth + (maxSideExpansion + sideMargin) * 2
 
-        let maxContentHeight: CGFloat = 200
+        let maxContentHeight: CGFloat = 430
         let xPosition = screen.frame.midX - (totalWidth / 2)
         let yPosition = screen.frame.maxY - maxContentHeight
 
@@ -76,10 +78,6 @@ class NotchRecorderPanel: KeyablePanel {
         let metrics = NotchRecorderPanel.calculateWindowMetrics()
         setFrame(metrics.frame, display: true)
         orderFrontRegardless()
-    }
-
-    func hide(completion: @escaping () -> Void) {
-        completion()
     }
 
     @objc private func handleScreenParametersChange() {

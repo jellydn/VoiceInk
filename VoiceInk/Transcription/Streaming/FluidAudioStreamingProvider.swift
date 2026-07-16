@@ -26,8 +26,19 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
     private var transcriptionTask: Task<Void, Never>?
     private var isTranscribing = false
     private var lastTranscribedSampleCount = 0
+    private let confirmationLock = NSLock()
+    private var confirmedSegmentCount = 0
+    private let minimumConfirmedSegmentsForStreamingFinalization = 3
     private let minimumAudioSamples = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
     private let minNewSamples = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
+
+    var stopDisposition: StreamingStopDisposition {
+        confirmationLock.lock()
+        defer { confirmationLock.unlock() }
+        return confirmedSegmentCount < minimumConfirmedSegmentsForStreamingFinalization
+            ? .useBatchFallback
+            : .finalizeStreaming
+    }
 
     init(fluidAudioService: FluidAudioTranscriptionService, config: AgreementConfig = AgreementConfig()) {
         self.fluidAudioService = fluidAudioService
@@ -58,6 +69,9 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         audioBuffer = []
         trimmedSampleCount = 0
         lastTranscribedSampleCount = 0
+        confirmationLock.lock()
+        confirmedSegmentCount = 0
+        confirmationLock.unlock()
 
         startTranscriptionLoop()
 
@@ -66,7 +80,7 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
     }
 
     func sendAudioChunk(_ data: Data) async throws {
-        let samples = Self.convertToFloat32(data)
+        let samples = PCMAudioConverter.float32Samples(fromPCM16Data: data)
         bufferLock.lock()
         audioBuffer.append(contentsOf: samples)
         bufferLock.unlock()
@@ -108,9 +122,10 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         transcriptionTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(nanoseconds: UInt64(
-                        (self?.config.transcribeIntervalSeconds ?? 1.0) * 1_000_000_000
-                    ))
+                    try await Task.sleep(
+                        nanoseconds: UInt64(
+                            (self?.config.transcribeIntervalSeconds ?? 1.0) * 1_000_000_000
+                        ))
                 } catch {
                     break
                 }
@@ -135,7 +150,8 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         defer { isTranscribing = false }
 
         // Seek to the start of the first unconfirmed word so it isn't clipped.
-        let seekTime = agreementEngine.hypothesisStartTime > 0
+        let seekTime =
+            agreementEngine.hypothesisStartTime > 0
             ? agreementEngine.hypothesisStartTime
             : agreementEngine.confirmedEndTime
         let seekSample = max(0, Int(seekTime * sampleRate))
@@ -151,11 +167,8 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         bufferLock.unlock()
 
         // Pad with 1s trailing silence for punctuation capture
-        let maxSingleChunkSamples = 240_000
         let trailingSilenceSamples = 16_000
-        if audioSlice.count + trailingSilenceSamples <= maxSingleChunkSamples {
-            audioSlice += [Float](repeating: 0, count: trailingSilenceSamples)
-        }
+        audioSlice += [Float](repeating: 0, count: trailingSilenceSamples)
 
         guard audioSlice.count >= minimumAudioSamples else { return }
 
@@ -179,11 +192,17 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             let words = WordAgreementEngine.mergeTokensToWords(tokenTimings, timeOffset: timeOffset)
             guard !words.isEmpty else { return }
 
-            let agreementResult = agreementEngine.processTranscriptionResult(words: words, resultConfidence: result.confidence)
+            let agreementResult = agreementEngine.processTranscriptionResult(
+                words: words, resultConfidence: result.confidence)
 
             if !agreementResult.newlyConfirmedText.isEmpty {
                 let normalizedConfirmed = TextNormalizer.shared.normalizeSentence(agreementResult.newlyConfirmedText)
-                eventsContinuation?.yield(.committed(text: normalizedConfirmed))
+                if !normalizedConfirmed.isEmpty {
+                    confirmationLock.lock()
+                    confirmedSegmentCount += 1
+                    confirmationLock.unlock()
+                    eventsContinuation?.yield(.committed(text: normalizedConfirmed))
+                }
             }
             if !agreementResult.fullText.isEmpty {
                 eventsContinuation?.yield(.partial(text: agreementResult.fullText))
@@ -204,7 +223,7 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             }
 
         } catch {
-            logger.error("Transcription pass failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("Transcription pass failed: \(error, privacy: .public)")
             eventsContinuation?.yield(.error(error))
         }
     }
@@ -213,7 +232,8 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
     private func transcribeRemainingAudio() async -> String? {
         guard let asrManager else { return nil }
 
-        let seekTime = agreementEngine.hypothesisStartTime > 0
+        let seekTime =
+            agreementEngine.hypothesisStartTime > 0
             ? agreementEngine.hypothesisStartTime
             : agreementEngine.confirmedEndTime
         let seekSample = max(0, Int(seekTime * sampleRate))
@@ -227,13 +247,10 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
         var samples = Array(audioBuffer[bufferRelativeSeek...])
         bufferLock.unlock()
 
-        guard samples.count >= minimumAudioSamples else { return nil }
-
+        // A short spoken tail still needs enough input for FluidAudio. Padding before
+        // transcription keeps that tail instead of rejecting it for being under 300 ms.
         let trailingSilenceSamples = 16_000
-        let maxSingleChunkSamples = 240_000
-        if samples.count + trailingSilenceSamples <= maxSingleChunkSamples {
-            samples += [Float](repeating: 0, count: trailingSilenceSamples)
-        }
+        samples += [Float](repeating: 0, count: trailingSilenceSamples)
 
         do {
             var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
@@ -246,22 +263,9 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             guard !text.isEmpty else { return nil }
             return TextNormalizer.shared.normalizeSentence(text)
         } catch {
-            logger.error("Final transcription failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("Final transcription failed: \(error, privacy: .public)")
             return nil
         }
     }
 
-    // MARK: - Audio Conversion
-
-    private static func convertToFloat32(_ data: Data) -> [Float] {
-        let sampleCount = data.count / MemoryLayout<Int16>.size
-        var samples = [Float](repeating: 0, count: sampleCount)
-        data.withUnsafeBytes { rawPtr in
-            let int16Ptr = rawPtr.bindMemory(to: Int16.self)
-            for i in 0..<sampleCount {
-                samples[i] = Float(int16Ptr[i]) / 32767.0
-            }
-        }
-        return samples
-    }
 }
