@@ -8,7 +8,7 @@ struct ModeConfigFormView: View {
     @Binding var showValidationAlert: Bool
     let onDismiss: () -> Void
     let onSave: () -> Void
-    let onDelete: () -> Void
+    let onDelete: () -> ModeRemovalResult
     let openPromptEditor: (PromptEditorView.Mode) -> Void
 
     @EnvironmentObject private var aiService: AIService
@@ -17,7 +17,12 @@ struct ModeConfigFormView: View {
 
     @State private var isShowingIconPicker = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingDefaultModeDeleteAlert = false
     @State private var isContextAwarenessExpanded = false
+
+    private var isDeletingDefaultMode: Bool {
+        modeManager.getConfiguration(with: draft.id)?.isDefault == true
+    }
 
     private var effectiveModelName: String? {
         draft.selectedTranscriptionModelName
@@ -150,7 +155,9 @@ struct ModeConfigFormView: View {
         ) {
             if case .edit = mode {
                 Button("Delete", role: .destructive) {
-                    onDelete()
+                    if case .blockedDefault = onDelete() {
+                        isShowingDefaultModeDeleteAlert = true
+                    }
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -160,6 +167,23 @@ struct ModeConfigFormView: View {
                     format: String(localized: "Are you sure you want to delete '%@'? This action cannot be undone."),
                     draft.name))
         }
+        .alert(
+            "Default Mode Can’t Be Deleted",
+            isPresented: $isShowingDefaultModeDeleteAlert,
+            actions: {
+                Button("OK", role: .cancel) {}
+            },
+            message: {
+                Text(
+                    String(
+                        format: String(
+                            localized: "'%@' is the default mode. Set another mode as default before deleting it."
+                        ),
+                        draft.name
+                    )
+                )
+            }
+        )
         .modeValidationAlert(errors: validationErrors, isPresented: $showValidationAlert)
     }
 
@@ -177,6 +201,11 @@ struct ModeConfigFormView: View {
                 )
 
                 Picker("Model", selection: modelBinding) {
+                    if draft.selectedTranscriptionModelName == nil {
+                        Label("Unavailable", systemImage: "waveform")
+                            .tag(nil as String?)
+                    }
+
                     ForEach(warmupSnapshot.usableTranscriptionModels, id: \.name) { model in
                         Text(model.displayName).tag(model.name as String?)
                     }
@@ -261,8 +290,7 @@ struct ModeConfigFormView: View {
                     NativeAppleLanguageAssetControl(
                         localeIdentifier: effectiveLanguage(for: modelInfo),
                         isVisible: true,
-                        startsDownloadAutomatically: true,
-                        allowsReservationReplacement: true
+                        startsDownloadAutomatically: true
                     )
                     .layoutPriority(1)
                     .frame(width: 28, height: 24)
@@ -608,7 +636,11 @@ struct ModeConfigFormView: View {
             HStack {
                 if case .edit = mode {
                     Button("Delete", role: .destructive) {
-                        isShowingDeleteConfirmation = true
+                        if isDeletingDefaultMode {
+                            isShowingDefaultModeDeleteAlert = true
+                        } else {
+                            isShowingDeleteConfirmation = true
+                        }
                     }
                     .buttonStyle(.bordered)
                 } else {

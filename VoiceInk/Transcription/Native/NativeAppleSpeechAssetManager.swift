@@ -12,7 +12,7 @@ enum NativeAppleSpeechAssetState: Equatable {
     case downloading
     case notSupported
     case assetManagementUnavailable
-    case reservationLimitReached([String])
+    case reservationLimitReached
     case failed(String)
 }
 
@@ -53,11 +53,24 @@ enum NativeAppleSpeechAssetManager {
                 return try await installAssetOnce(for: context)
             } catch {
                 if isReservationLimitError(error) {
-                    let reservedLocales = await reservedLocaleIdentifiers(excluding: localeIdentifier)
+                    if await releaseOneReservation(toMakeRoomFor: localeIdentifier) {
+                        do {
+                            guard let retryContext = await assetContext(for: localeIdentifier) else {
+                                return .notSupported
+                            }
+
+                            return try await installAssetOnce(for: retryContext)
+                        } catch {
+                            if !isReservationLimitError(error) {
+                                return .failed(error.localizedDescription)
+                            }
+                        }
+                    }
+
                     logger.warning(
-                        "Apple Speech asset download hit locale reservation limit for '\(localeIdentifier, privacy: .public)'. Waiting for user to release a reservation."
+                        "Apple Speech asset download still requires reservation replacement for '\(localeIdentifier, privacy: .public)'."
                     )
-                    return .reservationLimitReached(reservedLocales)
+                    return .reservationLimitReached
                 }
 
                 logger.error(
@@ -73,75 +86,28 @@ enum NativeAppleSpeechAssetManager {
         #endif
     }
 
-    static func reservedLocaleIdentifiers(excluding localeIdentifier: String? = nil) async -> [String] {
+    static func prepareAssetForUse(for localeIdentifier: String) async -> NativeAppleSpeechAssetState {
+        let installedState = await installAsset(for: localeIdentifier)
+        guard installedState == .downloaded else {
+            return installedState
+        }
+
         guard #available(macOS 26, *) else {
-            return []
+            return .assetManagementUnavailable
         }
 
         #if canImport(Speech) && ENABLE_NATIVE_SPEECH_ANALYZER
-            let requestedIdentifier: String?
-            if let localeIdentifier {
-                requestedIdentifier =
-                    await supportedLocale(for: localeIdentifier)?.identifier(.bcp47)
-                    ?? Locale(identifier: localeIdentifier).identifier(.bcp47)
-            } else {
-                requestedIdentifier = nil
+            guard let context = await assetContext(for: localeIdentifier) else {
+                return .notSupported
             }
 
-            return await AssetInventory.reservedLocales
-                .map { $0.identifier(.bcp47) }
-                .filter { identifier in
-                    if let requestedIdentifier {
-                        return identifier != requestedIdentifier
-                    }
-                    return true
-                }
-                .sorted {
-                    languageDisplayName(for: $0) < languageDisplayName(for: $1)
-                }
+            guard await reserveLocaleIfNeeded(for: context) else {
+                return .reservationLimitReached
+            }
+
+            return .downloaded
         #else
-            return []
-        #endif
-    }
-
-    static func releaseReservedLocale(
-        _ localeIdentifier: String,
-        toMakeRoomFor requestedLocaleIdentifier: String
-    ) async -> Bool {
-        guard #available(macOS 26, *) else {
-            return false
-        }
-
-        #if canImport(Speech) && ENABLE_NATIVE_SPEECH_ANALYZER
-            let normalizedIdentifier =
-                await supportedLocale(for: localeIdentifier)?.identifier(.bcp47)
-                ?? Locale(identifier: localeIdentifier).identifier(.bcp47)
-            let requestedIdentifier =
-                await supportedLocale(for: requestedLocaleIdentifier)?.identifier(.bcp47)
-                ?? Locale(identifier: requestedLocaleIdentifier).identifier(.bcp47)
-
-            guard
-                let localeToRelease = await AssetInventory.reservedLocales.first(where: {
-                    $0.identifier(.bcp47) == normalizedIdentifier
-                })
-            else {
-                logger.warning(
-                    "Apple Speech locale reservation '\(normalizedIdentifier, privacy: .public)' could not be found while making room for '\(requestedIdentifier, privacy: .public)'."
-                )
-                return false
-            }
-
-            let released = await AssetInventory.release(reservedLocale: localeToRelease)
-
-            if !released {
-                logger.warning(
-                    "Apple Speech failed to release locale reservation '\(normalizedIdentifier, privacy: .public)' while making room for '\(requestedIdentifier, privacy: .public)'."
-                )
-            }
-
-            return released
-        #else
-            return false
+            return .assetManagementUnavailable
         #endif
     }
 
@@ -159,9 +125,14 @@ enum NativeAppleSpeechAssetManager {
             let displayName: String
             let transcriber: SpeechTranscriber
             let status: AssetInventory.Status
+            let isInstalled: Bool
 
             var state: NativeAppleSpeechAssetState {
-                NativeAppleSpeechAssetManager.assetState(for: status)
+                if isInstalled {
+                    return .downloaded
+                }
+
+                return NativeAppleSpeechAssetManager.assetState(for: status)
             }
         }
 
@@ -178,14 +149,26 @@ enum NativeAppleSpeechAssetManager {
                 attributeOptions: []
             )
             let resolvedIdentifier = supportedLocale.identifier(.bcp47)
-            let status = await AssetInventory.status(forModules: [transcriber])
+            let installedLocales = await SpeechTranscriber.installedLocales
+            let isInstalled = installedLocales.contains {
+                $0.identifier(.bcp47) == resolvedIdentifier
+            }
+
+            // Prefer installedLocales because AssetInventory status can become stale.
+            let status: AssetInventory.Status
+            if isInstalled {
+                status = .installed
+            } else {
+                status = await AssetInventory.status(forModules: [transcriber])
+            }
 
             return AssetContext(
                 locale: supportedLocale,
                 localeIdentifier: resolvedIdentifier,
                 displayName: languageDisplayName(for: resolvedIdentifier),
                 transcriber: transcriber,
-                status: status
+                status: status,
+                isInstalled: isInstalled
             )
         }
 
@@ -193,7 +176,7 @@ enum NativeAppleSpeechAssetManager {
         private static func installAssetOnce(
             for context: AssetContext
         ) async throws -> NativeAppleSpeechAssetState {
-            if context.status == .installed || context.status == .unsupported {
+            if context.isInstalled || context.status == .unsupported {
                 return context.state
             }
 
@@ -217,29 +200,54 @@ enum NativeAppleSpeechAssetManager {
                 let reserved = try await AssetInventory.reserve(locale: context.locale)
 
                 guard reserved else {
-                    let finalStatus = await AssetInventory.status(forModules: [context.transcriber])
                     logger.warning(
-                        "Apple Speech asset reservation returned false for '\(context.localeIdentifier, privacy: .public)'. Continuing because the locale is already downloaded. Status: \(String(describing: finalStatus), privacy: .public)."
+                        "Apple Speech asset reservation returned false for '\(context.localeIdentifier, privacy: .public)'. Continuing with the installed language assets."
                     )
                     return true
                 }
 
                 return true
             } catch {
-                let finalStatus = await AssetInventory.status(forModules: [context.transcriber])
-
                 if isReservationLimitError(error) {
                     logger.warning(
-                        "Apple Speech reservation limit reached for '\(context.localeIdentifier, privacy: .public)'. User must release a reserved language in settings. Status: \(String(describing: finalStatus), privacy: .public)."
+                        "Apple Speech reservation limit reached for '\(context.localeIdentifier, privacy: .public)'. Replacing one existing reservation automatically."
                     )
-                } else {
-                    logger.warning(
-                        "Apple Speech asset reservation failed for '\(context.localeIdentifier, privacy: .public)': \(error, privacy: .public). Status: \(String(describing: finalStatus), privacy: .public)."
-                    )
+
+                    guard await releaseOneReservation(toMakeRoomFor: context.localeIdentifier) else {
+                        return false
+                    }
+
+                    do {
+                        try await AssetInventory.reserve(locale: context.locale)
+                        return true
+                    } catch {
+                        return !isReservationLimitError(error)
+                    }
                 }
 
+                logger.warning(
+                    "Apple Speech asset reservation failed for '\(context.localeIdentifier, privacy: .public)': \(error, privacy: .public). Continuing with the installed language assets."
+                )
+                return true
+            }
+        }
+
+        @available(macOS 26, *)
+        private static func releaseOneReservation(toMakeRoomFor localeIdentifier: String) async -> Bool {
+            let reservedLocales = await AssetInventory.reservedLocales
+            let requestedIdentifier =
+                await supportedLocale(for: localeIdentifier)?.identifier(.bcp47)
+                ?? Locale(identifier: localeIdentifier).identifier(.bcp47)
+
+            guard
+                let localeToRelease = reservedLocales.first(where: {
+                    $0.identifier(.bcp47) != requestedIdentifier
+                })
+            else {
                 return false
             }
+
+            return await AssetInventory.release(reservedLocale: localeToRelease)
         }
 
         @available(macOS 26, *)

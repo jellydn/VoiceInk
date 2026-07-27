@@ -29,10 +29,12 @@ struct OnboardingAPIScreen: View {
         } bottomBar: {
             OnboardingBottomBar(
                 leadingTitle: "Back",
-                primaryTitle: primaryButtonTitle,
-                isPrimaryEnabled: isPrimaryEnabled,
+                primaryTitle: "Continue",
+                isPrimaryEnabled: canContinue && isSelectedProviderVerified,
                 onLeading: onBack,
-                onPrimary: primaryAction
+                onPrimary: onContinue,
+                skipTitle: isSelectedProviderVerified ? nil : "Skip This Step",
+                onSkip: isSelectedProviderVerified ? nil : onRequestSkip
             )
         }
         .alert("Skip API setup?", isPresented: $isShowingSkipWarning) {
@@ -42,22 +44,6 @@ struct OnboardingAPIScreen: View {
             }
         } message: {
             Text("Enhancement modes and AI actions will stay off. You can always set it up later in the app.")
-        }
-    }
-
-    private var primaryButtonTitle: String {
-        isSelectedProviderVerified ? "Continue" : "Skip API Setup"
-    }
-
-    private var isPrimaryEnabled: Bool {
-        canContinue || !isSelectedProviderVerified
-    }
-
-    private func primaryAction() {
-        if isSelectedProviderVerified {
-            onContinue()
-        } else {
-            onRequestSkip()
         }
     }
 }

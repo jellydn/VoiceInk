@@ -233,11 +233,11 @@ class AudioTranscriptionManager: ObservableObject {
                         modeEmoji: modeMetadata.emoji
                     )
                 } catch {
-                    logger.error("Enhancement failed: \(error, privacy: .public)")
+                    let failureMessage = EnhancementFailureFormatter.message(for: error)
                     transcription = Transcription(
                         text: cleanedText,
                         duration: duration,
-                        enhancedText: String(localized: "Enhancement failed: \(error.localizedDescription)"),
+                        enhancedText: failureMessage,
                         audioFileURL: permanentURL.absoluteString,
                         transcriptionModelName: currentModel.displayName,
                         promptName: nil,

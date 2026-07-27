@@ -9,11 +9,10 @@ struct AudioTranscribeView: View {
     @StateObject private var transcriptionManager = AudioTranscriptionManager.shared
     @State private var isDropTargeted = false
     @State private var showModePopover = false
-    @State private var selectedModeId: UUID?
     @State private var expandedItemId: UUID?
 
     private var selectedMode: ModeConfig? {
-        modeManager.resolvedEnabledConfiguration(preferredId: selectedModeId)
+        modeManager.currentEffectiveConfiguration
     }
 
     var body: some View {
@@ -296,23 +295,9 @@ struct AudioTranscribeView: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
-        .onAppear {
-            syncSelectedMode()
-        }
-        .onChange(of: modeManager.currentEffectiveConfiguration?.id) { _, _ in
-            syncSelectedMode()
-        }
-        .onChange(of: modeManager.enabledConfigurations.map(\.id)) { _, _ in
-            syncSelectedMode()
-        }
-    }
-
-    private func syncSelectedMode() {
-        selectedModeId = modeManager.resolvedEnabledConfigurationId(preferredId: selectedModeId)
     }
 
     private func selectMode(_ mode: ModeConfig) {
-        selectedModeId = mode.id
         modeManager.setActiveConfiguration(mode)
         showModePopover = false
     }

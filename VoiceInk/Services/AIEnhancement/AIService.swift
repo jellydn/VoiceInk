@@ -25,7 +25,7 @@ enum AIProvider: String, CaseIterable {
         case .groq:
             return "https://api.groq.com/openai/v1/chat/completions"
         case .gemini:
-            return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            return "https://generativelanguage.googleapis.com/v1/interactions"
         case .anthropic:
             return "https://api.anthropic.com/v1/messages"
         case .openAI:
@@ -60,13 +60,13 @@ enum AIProvider: String, CaseIterable {
         case .groq:
             return "openai/gpt-oss-120b"
         case .gemini:
-            return "gemini-3.5-flash"
+            return "gemini-3.6-flash"
         case .anthropic:
-            return "claude-sonnet-4-6"
+            return "claude-sonnet-5"
         case .openAI:
             return "gpt-5.5"
         case .mistral:
-            return "mistral-large-latest"
+            return "mistral-medium-3-5"
         case .elevenLabs:
             return "scribe_v2"
         case .deepgram:
@@ -103,15 +103,17 @@ enum AIProvider: String, CaseIterable {
             ]
         case .gemini:
             return [
+                "gemini-3.6-flash",
+                "gemini-3.5-flash-lite",
                 "gemini-3.5-flash",
                 "gemini-3.1-pro-preview",
                 "gemini-3.1-flash-lite",
+                "gemini-2.5-flash-lite",
             ]
         case .anthropic:
             return [
-                "claude-haiku-4-5",
                 "claude-sonnet-5",
-                "claude-sonnet-4-6",
+                "claude-haiku-4-5",
             ]
         case .openAI:
             return [
@@ -125,9 +127,8 @@ enum AIProvider: String, CaseIterable {
             ]
         case .mistral:
             return [
-                "mistral-large-latest",
-                "mistral-medium-latest",
-                "mistral-small-latest",
+                "mistral-medium-3-5",
+                "mistral-small-2603",
             ]
         case .elevenLabs:
             return ["scribe_v2"]
@@ -462,7 +463,7 @@ class AIService: ObservableObject {
         case .openRouter:
             result = await OpenRouterClient.verifyAPIKey(key, model: verificationModel)
         case .gemini:
-            result = await GeminiTranscriptionClient.verifyAPIKey(key)
+            result = await GeminiLLMClient.verifyAPIKey(key)
         default:
             guard let baseURL = URL(string: provider.baseURL) else {
                 return (false, "Invalid or missing base URL configuration")

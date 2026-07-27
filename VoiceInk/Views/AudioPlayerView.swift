@@ -357,7 +357,6 @@ struct AudioPlayerView: View {
     @State private var operationFeedback: OperationFeedback?
     @State private var showModePopover = false
     @State private var showPromptPopover = false
-    @State private var selectedModeId: UUID?
     @EnvironmentObject private var engine: VoiceInkEngine
     @EnvironmentObject private var enhancementService: AIEnhancementService
     @ObservedObject private var modeManager = ModeManager.shared
@@ -381,7 +380,7 @@ struct AudioPlayerView: View {
     }
 
     private var selectedMode: ModeConfig? {
-        modeManager.resolvedEnabledConfiguration(preferredId: selectedModeId)
+        modeManager.currentEffectiveConfiguration
     }
 
     var body: some View {
@@ -481,13 +480,6 @@ struct AudioPlayerView: View {
         .padding(.bottom, 6)
         .onAppear {
             playerManager.loadAudio(from: url)
-            syncSelectedMode()
-        }
-        .onChange(of: modeManager.currentEffectiveConfiguration?.id) { _, _ in
-            syncSelectedMode()
-        }
-        .onChange(of: modeManager.enabledConfigurations.map(\.id)) { _, _ in
-            syncSelectedMode()
         }
         .onDisappear {
             playerManager.cleanup()
@@ -526,13 +518,8 @@ struct AudioPlayerView: View {
     }
 
     private func selectMode(_ mode: ModeConfig) {
-        selectedModeId = mode.id
         modeManager.setActiveConfiguration(mode)
         showModePopover = false
-    }
-
-    private func syncSelectedMode() {
-        selectedModeId = modeManager.resolvedEnabledConfigurationId(preferredId: selectedModeId)
     }
 
     private var promptSelectionPopover: some View {
@@ -630,11 +617,13 @@ struct AudioPlayerView: View {
                     showSuccessFeedback(.reEnhanceSuccess, title: String(localized: "Re-enhancement successful"))
                 }
             } catch {
+                let errorDescription = EnhancementFailureFormatter.description(for: error)
+                let failureMessage = EnhancementFailureFormatter.reEnhancementMessage(
+                    description: errorDescription
+                )
                 await MainActor.run {
                     isReEnhancing = false
-                    showErrorNotification(
-                        error.localizedDescription.isEmpty
-                            ? String(localized: "Re-enhancement failed") : error.localizedDescription)
+                    showErrorNotification(failureMessage)
                 }
             }
         }
@@ -661,14 +650,26 @@ struct AudioPlayerView: View {
 
         Task {
             do {
-                let _ = try await transcriptionService.retranscribeAudio(
+                let result = try await transcriptionService.retranscribeAudio(
                     from: url,
                     using: transcriptionConfiguration.model,
                     mode: selectedMode
                 )
                 await MainActor.run {
                     isRetranscribing = false
-                    showSuccessFeedback(.retranscribeSuccess, title: String(localized: "Retranscription successful"))
+                    if let enhancementFailure = result.enhancementFailure {
+                        NotificationManager.shared.showNotification(
+                            title: EnhancementFailureFormatter.transcriptionSavedMessage(
+                                description: enhancementFailure
+                            ),
+                            type: .warning
+                        )
+                    } else {
+                        showSuccessFeedback(
+                            .retranscribeSuccess,
+                            title: String(localized: "Retranscription successful")
+                        )
+                    }
                 }
             } catch {
                 await MainActor.run {

@@ -185,6 +185,30 @@ final class OnboardingFlowController {
             return
         }
 
+        continueAfterCurrentExperienceStep(
+            isTranscriptionSetupReady: isTranscriptionSetupReady,
+            enhancementService: enhancementService
+        )
+    }
+
+    func skipCurrentExperienceStep(
+        isTranscriptionSetupReady: Bool,
+        enhancementService: AIEnhancementService
+    ) {
+        guard coordinator.isReadyForExperience(isTranscriptionSetupReady: isTranscriptionSetupReady) else {
+            return
+        }
+
+        continueAfterCurrentExperienceStep(
+            isTranscriptionSetupReady: isTranscriptionSetupReady,
+            enhancementService: enhancementService
+        )
+    }
+
+    private func continueAfterCurrentExperienceStep(
+        isTranscriptionSetupReady: Bool,
+        enhancementService: AIEnhancementService
+    ) {
         if coordinator.shouldShowContextAwarenessAfterCurrentExperience {
             goToContextAwarenessStep(isTranscriptionSetupReady: isTranscriptionSetupReady)
         } else if coordinator.isLastExperienceStep {

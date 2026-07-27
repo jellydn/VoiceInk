@@ -125,12 +125,6 @@ struct ModeConfigDraft {
         selectedTranscriptionModelName = snapshot.usableTranscriptionModels.first?.name
     }
 
-    mutating func ensureTranscriptionModelSelection(fallback: String?) {
-        if selectedTranscriptionModelName == nil {
-            selectedTranscriptionModelName = fallback
-        }
-    }
-
     mutating func ensurePromptSelection(firstPromptId: UUID?) {
         if isAIEnhancementEnabled && selectedPromptId == nil {
             selectedPromptId = firstPromptId

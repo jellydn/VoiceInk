@@ -1,18 +1,31 @@
 import Foundation
+import LLMkit
 
 struct ReasoningConfig {
-    static let geminiNoneReasoningModels: Set<String> = []
-
-    // Gemini 3.1 Pro maps "minimal" to "low"; send "low" directly.
-    static let geminiLowReasoningModels: Set<String> = [
-        "gemini-3.1-pro-preview"
-    ]
-
-    // These Gemini models only go down to "minimal".
-    static let geminiMinimalReasoningModels: Set<String> = [
+    // These models support "minimal", optimized for low-latency instruction following.
+    static let geminiMinimalThinkingModels: Set<String> = [
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
         "gemini-3.5-flash",
         "gemini-3.1-flash-lite",
     ]
+
+    // Gemini 3.1 Pro does not support "minimal".
+    static let geminiLowThinkingModels: Set<String> = [
+        "gemini-3.1-pro-preview",
+    ]
+
+    // Gemini 2.5 Flash-Lite is intentionally omitted because its Interactions
+    // API default has thinking off.
+    static func geminiThinkingLevel(for modelName: String) -> GeminiThinkingLevel? {
+        if geminiMinimalThinkingModels.contains(modelName) {
+            return .minimal
+        }
+        if geminiLowThinkingModels.contains(modelName) {
+            return .low
+        }
+        return nil
+    }
 
     // OpenAI GPT-5 models support explicit "none"; GPT-4.1 models need no param.
     static let openAINoneReasoningModels: Set<String> = [
@@ -40,14 +53,6 @@ struct ReasoningConfig {
 
     static func getReasoningParameter(for provider: AIProvider, modelName: String) -> String? {
         switch provider {
-        case .gemini:
-            if geminiNoneReasoningModels.contains(modelName) {
-                return "none"
-            } else if geminiLowReasoningModels.contains(modelName) {
-                return "low"
-            } else if geminiMinimalReasoningModels.contains(modelName) {
-                return "minimal"
-            }
         case .openAI:
             if openAINoneReasoningModels.contains(modelName) { return "none" }
         case .cerebras:

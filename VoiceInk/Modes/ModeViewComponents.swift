@@ -98,6 +98,11 @@ struct DefaultModeIndicator: View {
 }
 
 struct ConfigurationRow: View {
+    private struct TranscriptionModelMetadata {
+        let label: String
+        let isWarning: Bool
+    }
+
     @Binding var config: ModeConfig
     let isEditing: Bool
     let modeManager: ModeManager
@@ -115,13 +120,22 @@ struct ConfigurationRow: View {
         return enhancementService.allPrompts.first { $0.id == uuid }
     }
 
-    private var selectedModel: String? {
-        if let modelName = config.selectedTranscriptionModelName,
-            let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName })
-        {
-            return model.displayName
+    private var transcriptionModelMetadata: TranscriptionModelMetadata {
+        switch ModeRuntimeResolver.transcriptionModelResolution(
+            mode: config,
+            transcriptionModelManager: transcriptionModelManager
+        ) {
+        case .available(_, let model):
+            return TranscriptionModelMetadata(
+                label: model.displayName,
+                isWarning: false
+            )
+        case .noMode, .noSelection, .modelNotFound, .unavailable:
+            return TranscriptionModelMetadata(
+                label: String(localized: "Unavailable"),
+                isWarning: true
+            )
         }
-        return "Default"
     }
 
     private var selectedLanguage: String? {
@@ -139,11 +153,6 @@ struct ConfigurationRow: View {
             return langCode.uppercased()
         }
         return "Default"
-    }
-
-    private var hasVisibleMetadata: Bool {
-        (selectedModel.map { $0 != "Default" } ?? false) || (selectedLanguage.map { $0 != "Default" } ?? false)
-            || config.isAIEnhancementEnabled || config.outputMode != .paste || config.autoSendKey.isEnabled
     }
 
     private var appCount: Int { return config.allAppConfigs.count }
@@ -265,157 +274,154 @@ struct ConfigurationRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppMaterialCardBackground.fill)
 
-            if hasVisibleMetadata {
-                Divider()
+            Divider()
 
-                HStack(spacing: 8) {
-                    if let model = selectedModel, model != "Default" {
-                        HStack(spacing: 4) {
-                            Image(systemName: "waveform")
-                                .font(.system(size: 10))
-                            Text(model)
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-
-                    if let language = selectedLanguage, language != "Default" {
-                        HStack(spacing: 4) {
-                            Image(systemName: "globe")
-                                .font(.system(size: 10))
-                            Text(language)
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-
-                    if config.isAIEnhancementEnabled,
-                        config.selectedAIProvider != AIProvider.localCLI.rawValue,
-                        let modelName = config.selectedAIModel,
-                        !modelName.isEmpty
-                    {
-                        HStack(spacing: 4) {
-                            Image(systemName: "cpu")
-                                .font(.system(size: 10))
-                            Text(modelName.count > 20 ? String(modelName.prefix(18)) + "..." : modelName)
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-
-                    if config.outputMode != .paste {
-                        HStack(spacing: 4) {
-                            Image(systemName: config.outputMode.iconName)
-                                .font(.system(size: 10))
-                            Text(config.outputMode.displayName)
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-
-                    if config.outputMode == .paste && config.autoSendKey.isEnabled {
-                        HStack(spacing: 4) {
-                            Image(systemName: "keyboard")
-                                .font(.system(size: 10))
-                            Text(config.autoSendKey.displayName)
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-                    if config.isAIEnhancementEnabled {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                            Text(selectedPrompt?.title ?? "AI")
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Surface.control)
-                        )
-                        .overlay(
-                            Capsule()
-                                .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                        )
-                    }
-
-                    Spacer()
-
-                    if isHovering {
-                        editModeButton
-                            .transition(.opacity)
-                    }
+            HStack(spacing: 8) {
+                let modelMetadata = transcriptionModelMetadata
+                HStack(spacing: 4) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 10))
+                    Text(modelMetadata.label)
+                        .font(.caption)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onEditConfig(config)
+                .foregroundStyle(modelMetadata.isWarning ? Color.white : Color.primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(
+                            modelMetadata.isWarning
+                                ? Color.red.opacity(0.80) : AppTheme.Surface.control)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(
+                            modelMetadata.isWarning
+                                ? Color.red.opacity(0.80) : AppTheme.Border.control,
+                            lineWidth: 0.5
+                        )
+                )
+
+                if let language = selectedLanguage, language != "Default" {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 10))
+                        Text(language)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Surface.control)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
+                    )
                 }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 16)
-                .background(AppTheme.Surface.card)
+
+                if config.isAIEnhancementEnabled,
+                    config.selectedAIProvider != AIProvider.localCLI.rawValue,
+                    let modelName = config.selectedAIModel,
+                    !modelName.isEmpty
+                {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 10))
+                        Text(modelName.count > 20 ? String(modelName.prefix(18)) + "..." : modelName)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Surface.control)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
+                    )
+                }
+
+                if config.outputMode != .paste {
+                    HStack(spacing: 4) {
+                        Image(systemName: config.outputMode.iconName)
+                            .font(.system(size: 10))
+                        Text(config.outputMode.displayName)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Surface.control)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
+                    )
+                }
+
+                if config.outputMode == .paste && config.autoSendKey.isEnabled {
+                    HStack(spacing: 4) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 10))
+                        Text(config.autoSendKey.displayName)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Surface.control)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
+                    )
+                }
+                if config.isAIEnhancementEnabled {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 10))
+                        Text(selectedPrompt?.title ?? "AI")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Surface.control)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
+                    )
+                }
+
+                Spacer()
+
+                if isHovering {
+                    editModeButton
+                        .transition(.opacity)
+                }
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onEditConfig(config)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 16)
+            .background(AppTheme.Surface.card)
         }
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .background {
-            if !hasVisibleMetadata {
-                AppMaterialCardBackground(isSelected: isEditing, cornerRadius: 16)
-            }
-        }
         .overlay {
-            if hasVisibleMetadata {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        AppMaterialCardBackground.border(for: isEditing),
-                        lineWidth: AppMaterialCardBackground.lineWidth(for: isEditing)
-                    )
-            }
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    AppMaterialCardBackground.border(for: isEditing),
+                    lineWidth: AppMaterialCardBackground.lineWidth(for: isEditing)
+                )
         }
         .opacity(config.isEnabled ? 1.0 : 0.70)
         .onHover { hovering in
@@ -425,9 +431,6 @@ struct ConfigurationRow: View {
         }
     }
 
-    private var isSelected: Bool {
-        return isEditing
-    }
 }
 
 struct ModeAppIcon: View {

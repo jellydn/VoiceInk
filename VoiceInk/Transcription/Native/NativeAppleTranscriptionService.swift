@@ -36,7 +36,7 @@ class NativeAppleTranscriptionService: TranscriptionService {
                 return String(
                     format: String(
                         localized:
-                            "Apple Speech could not reserve language assets for %@. Manage reserved Apple Speech languages in settings."
+                            "Apple Speech could not reserve language assets for %@. Please try again."
                     ), displayName)
             case .resultStreamTimedOut:
                 return String(localized: "Apple Speech did not finish returning transcription results.")
@@ -81,24 +81,24 @@ class NativeAppleTranscriptionService: TranscriptionService {
                 throw ServiceError.localeNotSupported
             }
 
-            switch assetContext.status {
-            case .installed:
-                break
-            case .supported, .downloading:
-                logger.error(
-                    "Transcription failed: Assets for '\(assetContext.localeIdentifier, privacy: .public)' are not ready. Status: \(String(describing: assetContext.status), privacy: .public)."
-                )
-                throw ServiceError.assetDownloadRequired(assetContext.displayName)
-            case .unsupported:
-                logger.error(
-                    "Transcription failed: Locale '\(assetContext.localeIdentifier, privacy: .public)' is not supported by SpeechTranscriber."
-                )
-                throw ServiceError.localeNotSupported
-            @unknown default:
-                logger.error(
-                    "Transcription failed: Unknown Apple Speech asset status for '\(assetContext.localeIdentifier, privacy: .public)': \(String(describing: assetContext.status), privacy: .public)."
-                )
-                throw ServiceError.assetDownloadRequired(assetContext.displayName)
+            guard assetContext.isInstalled else {
+                switch assetContext.status {
+                case .unsupported:
+                    logger.error(
+                        "Transcription failed: Locale '\(assetContext.localeIdentifier, privacy: .public)' is not supported by SpeechTranscriber."
+                    )
+                    throw ServiceError.localeNotSupported
+                case .installed, .supported, .downloading:
+                    logger.error(
+                        "Transcription failed: Assets for '\(assetContext.localeIdentifier, privacy: .public)' are not ready. Status: \(String(describing: assetContext.status), privacy: .public)."
+                    )
+                    throw ServiceError.assetDownloadRequired(assetContext.displayName)
+                @unknown default:
+                    logger.error(
+                        "Transcription failed: Unknown Apple Speech asset status for '\(assetContext.localeIdentifier, privacy: .public)': \(String(describing: assetContext.status), privacy: .public)."
+                    )
+                    throw ServiceError.assetDownloadRequired(assetContext.displayName)
+                }
             }
 
             guard await NativeAppleSpeechAssetManager.reserveLocaleIfNeeded(for: assetContext) else {

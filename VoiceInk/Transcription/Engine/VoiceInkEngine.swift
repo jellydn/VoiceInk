@@ -237,6 +237,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
             requestRecordPermission { [self] granted in
                 if granted {
                     Task { @MainActor [self] in
+                        guard await self.passesRecordingPreflight() else { return }
+
                         let startID = UUID()
                         self.activeRecordingStartID = startID
                         let activeModeTask = ActiveWindowService.shared.beginApplyingConfiguration(modeId: modeId) {
@@ -287,13 +289,21 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
                             self.startRecordingContextCapture()
 
+                            let modelResolution = ModeRuntimeResolver.transcriptionModelResolution(
+                                transcriptionModelManager: self.transcriptionModelManager
+                            )
                             guard
                                 let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(
-                                    transcriptionModelManager: self.transcriptionModelManager
+                                    from: modelResolution
                                 )
                             else {
+                                let failure = self.recordingModelFailure(for: modelResolution)
                                 NotificationManager.shared.showNotification(
-                                    title: String(localized: "No AI Model Selected"), type: .error)
+                                    title: failure.title,
+                                    type: .error,
+                                    duration: 7.0,
+                                    actionButton: (failure.actionLabel, failure.action)
+                                )
                                 await self.recorder.stopRecording()
                                 try? FileManager.default.removeItem(at: permanentURL)
                                 self.recordedFile = nil
@@ -399,6 +409,82 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
     private func requestRecordPermission(response: @escaping (Bool) -> Void) {
         response(true)
+    }
+
+    // MARK: - Recording Preflight
+
+    @MainActor
+    private func recordingModelFailure(
+        for resolution: ModeTranscriptionModelResolution
+    ) -> (title: String, actionLabel: String, action: () -> Void) {
+        switch resolution {
+        case .noMode:
+            return (
+                String(localized: "No mode configured"),
+                String(localized: "Manage Modes"),
+                ModeSetupNavigator.openModesSettings
+            )
+        case .noSelection(let mode):
+            return (
+                String(
+                    format: String(localized: "No transcription model is selected for the '%@' mode"),
+                    mode.name
+                ),
+                String(localized: "Manage Modes"),
+                ModeSetupNavigator.openModesSettings
+            )
+        case .modelNotFound(let mode):
+            return (
+                String(
+                    format: String(localized: "The transcription model selected for the '%@' mode is unavailable"),
+                    mode.name
+                ),
+                String(localized: "Manage Modes"),
+                ModeSetupNavigator.openModesSettings
+            )
+        case .unavailable(let mode, let model), .available(let mode, let model):
+            return (
+                String(
+                    format: String(localized: "'%@' is not available for the %@ mode"),
+                    model.displayName,
+                    mode.name
+                ),
+                String(localized: "Manage AI Models"),
+                ModeSetupNavigator.openModelsSettings
+            )
+        }
+    }
+
+    /// Checks requirements that do not depend on asynchronous app and URL mode resolution.
+    @MainActor
+    private func passesRecordingPreflight() async -> Bool {
+        if !ModeManager.shared.hasEnabledConfiguration {
+            await failRecordingPreflight(
+                title: String(localized: "No mode configured"),
+                actionLabel: String(localized: "Manage Modes"),
+                action: ModeSetupNavigator.openModesSettings
+            )
+            return false
+        }
+
+        return true
+    }
+
+    @MainActor
+    private func failRecordingPreflight(
+        title: String,
+        actionLabel: String,
+        action: @escaping () -> Void
+    ) async {
+        logger.error("❌ Recording preflight failed: \(title, privacy: .public)")
+        recordingState = .idle
+        NotificationManager.shared.showNotification(
+            title: title,
+            type: .error,
+            duration: 7.0,
+            actionButton: (actionLabel, action)
+        )
+        await recorderUIManager?.dismissRecorderPanel()
     }
 
     // MARK: - Recording Context

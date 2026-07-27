@@ -31,6 +31,7 @@ struct DashboardContent: View {
     @State private var isInsightsViewPresented = false
     @State private var selectedInsightPeriod: DashboardInsightPeriod = .allTime
     @State private var isAccessibilityEnabled = AXIsProcessTrusted()
+    @ObservedObject private var modeManager = ModeManager.shared
     @State private var isSystemInfoCopied = false
     @State private var isEditingDisplayName = false
     @State private var displayNameDraft = ""
@@ -136,6 +137,12 @@ struct DashboardContent: View {
             if !isAccessibilityEnabled {
                 nameEditorDismissArea {
                     accessibilityReminder
+                }
+            }
+
+            if !modeManager.hasEnabledConfiguration {
+                nameEditorDismissArea {
+                    DashboardNoModesReminder(onOpenModes: ModeSetupNavigator.openModesSettings)
                 }
             }
 
@@ -825,6 +832,46 @@ private struct DashboardAccessibilityReminder: View {
             Button("Open Settings", action: onOpenSettings)
                 .controlSize(.small)
                 .help("Open Accessibility settings")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppCardBackground(cornerRadius: 16))
+    }
+}
+
+private struct DashboardNoModesReminder: View {
+    let onOpenModes: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppTheme.Accent.fill)
+
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 15, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(AppTheme.Accent.primary)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Set Up a Mode")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text("VoiceInk needs at least one mode to record. Create one to start dictating.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Manage Modes", action: onOpenModes)
+                .controlSize(.small)
+                .help("Open Modes settings")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

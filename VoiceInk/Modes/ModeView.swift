@@ -119,12 +119,12 @@ struct ModeView: View {
                                             .foregroundColor(.secondary.opacity(0.6))
 
                                         VStack(spacing: 8) {
-                                            Text("No Modes Yet")
+                                            Text("Create your first mode")
                                                 .font(.system(size: 20, weight: .medium))
                                                 .foregroundColor(.primary)
 
                                             Text(
-                                                "Create first mode to automate your VoiceInk workflow based on apps/website you are using"
+                                                "Set how VoiceInk transcribes and formats your speech, then start dictating in any app."
                                             )
                                             .font(.system(size: 14))
                                             .foregroundColor(.secondary)

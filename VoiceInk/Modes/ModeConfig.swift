@@ -270,6 +270,12 @@ struct URLConfig: Codable, Identifiable, Equatable {
     }
 }
 
+enum ModeRemovalResult {
+    case removed
+    case blockedDefault
+    case notFound
+}
+
 class ModeManager: ObservableObject {
     static let shared = ModeManager()
     @Published var configurations: [ModeConfig] = []
@@ -306,34 +312,67 @@ class ModeManager: ObservableObject {
         NotificationCenter.default.post(name: .modeConfigurationsDidChange, object: nil)
     }
 
-    func addConfiguration(_ config: ModeConfig) {
-        if !configurations.contains(where: { $0.id == config.id }) {
-            let previousEnabledConfigIds = enabledConfigurationIds
-            configurations.append(config)
-            saveConfigurations()
-            postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
+    func addConfiguration(_ newConfiguration: ModeConfig) {
+        guard !configurations.contains(where: { $0.id == newConfiguration.id }) else {
+            return
         }
+
+        let previousEnabledConfigIds = enabledConfigurationIds
+        var configuration = newConfiguration
+        if configuration.isDefault {
+            for index in configurations.indices {
+                configurations[index].isDefault = false
+            }
+            configuration.isEnabled = true
+        }
+
+        configurations.append(configuration)
+        saveConfigurations()
+        postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
     }
 
-    func removeConfiguration(with id: UUID) {
+    func removeConfiguration(with id: UUID) -> ModeRemovalResult {
+        guard let configuration = getConfiguration(with: id) else {
+            return .notFound
+        }
+        guard !configuration.isDefault else {
+            return .blockedDefault
+        }
+
+        let previousEffectiveConfigurationId = currentEffectiveConfiguration?.id
         let previousEnabledConfigIds = enabledConfigurationIds
         ShortcutStore.removeShortcutStorage(for: .mode(id))
         configurations.removeAll { $0.id == id }
+        let selectedConfiguration = repairActiveConfigurationIfNeeded(
+            previousEffectiveConfigurationId: previousEffectiveConfigurationId
+        )
         saveConfigurations()
         postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
+        notifyActiveConfigurationChange(selectedConfiguration)
+        return .removed
     }
 
     func getConfiguration(with id: UUID) -> ModeConfig? {
         return configurations.first { $0.id == id }
     }
 
-    func updateConfiguration(_ config: ModeConfig) {
-        if let index = configurations.firstIndex(where: { $0.id == config.id }) {
-            let previousEnabledConfigIds = enabledConfigurationIds
-            configurations[index] = config
-            saveConfigurations()
-            postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
+    func updateConfiguration(_ updatedConfiguration: ModeConfig) {
+        guard let index = configurations.firstIndex(where: { $0.id == updatedConfiguration.id }) else {
+            return
         }
+
+        let previousEnabledConfigIds = enabledConfigurationIds
+        var configuration = updatedConfiguration
+        if configuration.isDefault {
+            for configurationIndex in configurations.indices {
+                configurations[configurationIndex].isDefault = false
+            }
+            configuration.isEnabled = true
+        }
+
+        configurations[index] = configuration
+        saveConfigurations()
+        postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
     }
 
     func moveConfigurations(fromOffsets: IndexSet, toOffset: Int) {
@@ -377,6 +416,7 @@ class ModeManager: ObservableObject {
         return configurations.first { $0.isEnabled && $0.isDefault }
     }
 
+    /// The single source of truth for which mode is running, for UI and pipeline alike.
     var currentEffectiveConfiguration: ModeConfig? {
         if let activeConfiguration,
             let latestActive = configurations.first(where: { $0.id == activeConfiguration.id }),
@@ -385,7 +425,7 @@ class ModeManager: ObservableObject {
             return latestActive
         }
 
-        return getDefaultConfiguration()
+        return getDefaultConfiguration() ?? enabledConfigurations.first
     }
 
     func hasDefaultConfiguration() -> Bool {
@@ -393,17 +433,23 @@ class ModeManager: ObservableObject {
     }
 
     func setAsDefault(configId: UUID, skipSave: Bool = false) {
+        guard let targetIndex = configurations.firstIndex(where: { $0.id == configId }) else {
+            return
+        }
+
+        let previousEnabledConfigIds = enabledConfigurationIds
+
         for index in configurations.indices {
             configurations[index].isDefault = false
         }
 
-        if let index = configurations.firstIndex(where: { $0.id == configId }) {
-            configurations[index].isDefault = true
-        }
+        configurations[targetIndex].isDefault = true
+        configurations[targetIndex].isEnabled = true
 
         if !skipSave {
             saveConfigurations()
         }
+        postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
     }
 
     func enableConfiguration(with id: UUID) {
@@ -416,12 +462,22 @@ class ModeManager: ObservableObject {
     }
 
     func disableConfiguration(with id: UUID) {
-        if let index = configurations.firstIndex(where: { $0.id == id }) {
-            let previousEnabledConfigIds = enabledConfigurationIds
-            configurations[index].isEnabled = false
-            saveConfigurations()
-            postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
+        guard let index = configurations.firstIndex(where: { $0.id == id }),
+            configurations[index].isEnabled,
+            !configurations[index].isDefault
+        else {
+            return
         }
+
+        let previousEffectiveConfigurationId = currentEffectiveConfiguration?.id
+        let previousEnabledConfigIds = enabledConfigurationIds
+        configurations[index].isEnabled = false
+        let selectedConfiguration = repairActiveConfigurationIfNeeded(
+            previousEffectiveConfigurationId: previousEffectiveConfigurationId
+        )
+        saveConfigurations()
+        postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: previousEnabledConfigIds)
+        notifyActiveConfigurationChange(selectedConfiguration)
     }
 
     var enabledConfigurations: [ModeConfig] {
@@ -435,15 +491,60 @@ class ModeManager: ObservableObject {
             return configuration
         }
 
-        return currentEffectiveConfiguration ?? enabledConfigurations.first
+        return currentEffectiveConfiguration
     }
 
     func resolvedEnabledConfigurationId(preferredId: UUID?) -> UUID? {
         resolvedEnabledConfiguration(preferredId: preferredId)?.id
     }
 
+    var hasEnabledConfiguration: Bool {
+        configurations.contains(where: \.isEnabled)
+    }
+
     private var enabledConfigurationIds: Set<UUID> {
         Set(enabledConfigurations.map(\.id))
+    }
+
+    /// Repairs an invalid active selection using enabled modes only.
+    private func repairActiveConfigurationIfNeeded(
+        previousEffectiveConfigurationId: UUID?
+    ) -> ModeConfig? {
+        let enabledConfigIds = enabledConfigurationIds
+        let activeConfigurationIsUnavailable =
+            activeConfiguration.map { active in
+                !enabledConfigIds.contains(active.id)
+            } ?? false
+        let previousEffectiveConfigurationIsUnavailable =
+            previousEffectiveConfigurationId.map { id in
+                !enabledConfigIds.contains(id)
+            } ?? false
+
+        guard activeConfigurationIsUnavailable || previousEffectiveConfigurationIsUnavailable else {
+            return nil
+        }
+
+        guard let target = getDefaultConfiguration() ?? enabledConfigurations.first else {
+            setActiveConfiguration(nil)
+            return nil
+        }
+
+        setActiveConfiguration(target)
+        return target.id == previousEffectiveConfigurationId ? nil : target
+    }
+
+    private func notifyActiveConfigurationChange(_ config: ModeConfig?) {
+        guard let config else { return }
+
+        Task { @MainActor in
+            NotificationManager.shared.showNotification(
+                title: String(
+                    format: String(localized: "Active mode switched to %@"),
+                    config.name
+                ),
+                type: .info
+            )
+        }
     }
 
     private func postShortcutAvailabilityChangeIfNeeded(previousEnabledConfigIds: Set<UUID>) {

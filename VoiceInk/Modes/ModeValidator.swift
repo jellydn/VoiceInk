@@ -3,6 +3,7 @@ import SwiftUI
 
 enum ModeValidationError: Error, Identifiable {
     case emptyName
+    case missingTranscriptionModel
     case emptyCustomCommand
     case duplicateName(String)
     case duplicateAppTrigger(String, String)  // (app name, existing mode name)
@@ -11,6 +12,7 @@ enum ModeValidationError: Error, Identifiable {
     var id: String {
         switch self {
         case .emptyName: return "emptyName"
+        case .missingTranscriptionModel: return "missingTranscriptionModel"
         case .emptyCustomCommand: return "emptyCustomCommand"
         case .duplicateName: return "duplicateName"
         case .duplicateAppTrigger: return "duplicateAppTrigger"
@@ -22,6 +24,8 @@ enum ModeValidationError: Error, Identifiable {
         switch self {
         case .emptyName:
             return String(localized: "Mode name cannot be empty.")
+        case .missingTranscriptionModel:
+            return String(localized: "A transcription model must be selected.")
         case .emptyCustomCommand:
             return String(localized: "Custom command cannot be empty.")
         case .duplicateName(let name):
@@ -57,6 +61,10 @@ struct ModeValidator {
 
         if config.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             errors.append(.emptyName)
+        }
+
+        if config.selectedTranscriptionModelName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            errors.append(.missingTranscriptionModel)
         }
 
         if config.outputMode == .customCommand,

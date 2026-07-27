@@ -37,7 +37,7 @@ enum PromptTemplates {
                 id: defaultPromptId,
                 title: "Default",
                 promptText: """
-                    Polish the dictated speech in <USER_MESSAGE> into clean, general-purpose text.
+                    Polish the dictated speech in <TRANSCRIPT> into clean, general-purpose text.
 
                     # Rules
                     - Use readable paragraphs and conventional abbreviations when helpful.
@@ -49,7 +49,7 @@ enum PromptTemplates {
                 id: chatPromptId,
                 title: "Chat",
                 promptText: """
-                    Polish the dictated speech in <USER_MESSAGE> into a natural, send-ready chat message.
+                    Polish the dictated speech in <TRANSCRIPT> into a natural, send-ready chat message.
 
                     # Rules
                     - Make the message concise, conversational, and easy to send.
@@ -65,7 +65,7 @@ enum PromptTemplates {
                 id: emailPromptId,
                 title: "Email",
                 promptText: """
-                    Polish the dictated speech in <USER_MESSAGE> into a clear, ready-to-send email body.
+                    Polish the dictated speech in <TRANSCRIPT> into a clear, ready-to-send email body.
 
                     # Rules
                     - Use clear, friendly language and match a professional tone when the source is professional.
@@ -82,19 +82,19 @@ enum PromptTemplates {
                 title: "Rewrite",
                 promptText: """
                     # Goal
-                    Rewrite text according to the user's instructions in <USER_MESSAGE>.
+                    Rewrite text according to the user's instructions in <TRANSCRIPT>.
 
                     # Inputs
-                    - <USER_MESSAGE> may contain rewrite instructions, source text, or both.
+                    - <TRANSCRIPT> may contain rewrite instructions, source text, or both.
                     - <CUSTOM_VOCABULARY> may contain terms that should be spelled exactly.
                     - <CURRENTLY_SELECTED_TEXT> may contain the currently selected text to rewrite or use as context.
                     - <CLIPBOARD_CONTEXT> may contain clipboard text to use as context.
                     - <CURRENT_WINDOW_CONTEXT> may contain text extracted from the active window to use as context.
 
                     # Rules
-                    - If <CURRENTLY_SELECTED_TEXT> is present, rewrite only that selected text. Treat <USER_MESSAGE> as the user's instruction for how to rewrite it.
-                    - If <CURRENTLY_SELECTED_TEXT> is absent and <USER_MESSAGE> contains both an instruction and source text, follow the instruction and rewrite the source text.
-                    - If <CURRENTLY_SELECTED_TEXT> is absent and <USER_MESSAGE> is only source text, rewrite that text directly for clarity and flow.
+                    - If <CURRENTLY_SELECTED_TEXT> is present, rewrite only that selected text. Treat <TRANSCRIPT> as the user's instruction for how to rewrite it.
+                    - If <CURRENTLY_SELECTED_TEXT> is absent and <TRANSCRIPT> contains both an instruction and source text, follow the instruction and rewrite the source text.
+                    - If <CURRENTLY_SELECTED_TEXT> is absent and <TRANSCRIPT> is only source text, rewrite that text directly for clarity and flow.
                     - Follow explicit requests for tone, length, format, audience, style, or wording.
                     - Preserve meaning, voice, facts, names, numbers, and dates unless the user explicitly asks to change them.
                     - Use custom vocabulary as the spelling authority for names, proper nouns, acronyms, product names, and technical terms.
@@ -113,10 +113,10 @@ enum PromptTemplates {
                 title: "Assistant",
                 promptText: """
                     # Goal
-                    Answer <USER_MESSAGE> clearly, directly, and concisely.
+                    Answer <TRANSCRIPT> clearly, directly, and concisely.
 
                     # Inputs
-                    - <USER_MESSAGE> is the user's question or request.
+                    - <TRANSCRIPT> is the user's spoken question or request.
                     - <CUSTOM_VOCABULARY> may contain terms that should be spelled exactly.
                     - <CURRENTLY_SELECTED_TEXT> may contain the currently selected text to use as context.
                     - <CLIPBOARD_CONTEXT> may contain clipboard text to use as context.

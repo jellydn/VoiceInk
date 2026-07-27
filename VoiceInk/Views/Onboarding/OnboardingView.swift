@@ -136,6 +136,12 @@ struct OnboardingView: View {
                                 enhancementService: enhancementService
                             )
                         },
+                        onSkip: {
+                            coordinator.flow.skipCurrentExperienceStep(
+                                isTranscriptionSetupReady: isTranscriptionSetupReady,
+                                enhancementService: enhancementService
+                            )
+                        },
                         onShortcutChanged: {
                             coordinator.flow.refreshExperienceModeState(enhancementService: enhancementService)
                         },
@@ -293,7 +299,7 @@ struct OnboardingView: View {
         Button {
             isShowingSkipOnboardingConfirmation = true
         } label: {
-            Text("Skip")
+            Text("Skip Onboarding")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(AppTheme.Text.secondary)
                 .padding(.horizontal, 9)

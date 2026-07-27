@@ -19,14 +19,14 @@ struct VoiceInkApp: App {
     @StateObject private var recordingShortcutManager: RecordingShortcutManager
     @StateObject private var updaterViewModel: UpdaterViewModel
     @StateObject private var menuBarManager: MenuBarManager
-    @StateObject private var mainWindowNavigation = MainWindowNavigation()
+    @StateObject private var mainWindowNavigation = MainWindowNavigation.shared
     @StateObject private var aiService = AIService()
     @StateObject private var enhancementService: AIEnhancementService
     @StateObject private var activeWindowService = ActiveWindowService.shared
     @AppStorage("hasCompletedOnboardingV2") private var hasCompletedOnboardingV2 = false
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @State private var showMenuBarIcon = true
-    @State private var didShowAccessibilityReminder = false
+    @State private var didShowLaunchReminders = false
 
     // Audio cleanup manager for automatic deletion of old audio files
     private let audioCleanupManager = AudioCleanupManager.shared
@@ -295,7 +295,7 @@ struct VoiceInkApp: App {
                                 AnnouncementsService.shared.start()
                             }
 
-                            showAccessibilityReminderIfNeeded()
+                            showLaunchRemindersIfNeeded()
 
                             // Run due audio-only cleanup and schedule future checks when transcript cleanup is not managing retention.
                             if !UserDefaults.standard.bool(forKey: CleanupSettingsKeys.isTranscriptionCleanupEnabled)
@@ -397,18 +397,29 @@ struct VoiceInkApp: App {
         #endif
     }
 
-    private func showAccessibilityReminderIfNeeded() {
-        guard !didShowAccessibilityReminder else { return }
-        didShowAccessibilityReminder = true
+    /// Only one notification fits on screen, so show at most one launch reminder.
+    private func showLaunchRemindersIfNeeded() {
+        guard !didShowLaunchReminders else { return }
+        didShowLaunchReminders = true
 
-        guard !AXIsProcessTrusted() else { return }
+        if !AXIsProcessTrusted() {
+            NotificationManager.shared.showNotification(
+                title: String(localized: "Accessibility permission is not provided"),
+                type: .warning,
+                duration: 7.0,
+                actionButton: (String(localized: "Open Settings"), Self.openAccessibilitySettings)
+            )
+            return
+        }
 
-        NotificationManager.shared.showNotification(
-            title: String(localized: "Accessibility permission is not provided"),
-            type: .warning,
-            duration: 7.0,
-            actionButton: (String(localized: "Open Settings"), Self.openAccessibilitySettings)
-        )
+        if !ModeManager.shared.hasEnabledConfiguration {
+            NotificationManager.shared.showNotification(
+                title: String(localized: "No mode configured"),
+                type: .warning,
+                duration: 7.0,
+                actionButton: (String(localized: "Manage Modes"), ModeSetupNavigator.openModesSettings)
+            )
+        }
     }
 
     private static func openAccessibilitySettings() {

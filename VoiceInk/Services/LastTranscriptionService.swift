@@ -133,20 +133,30 @@ class LastTranscriptionService: ObservableObject {
                 enhancementService: enhancementService
             )
             do {
-                let newTranscription = try await transcriptionService.retranscribeAudio(
+                let result = try await transcriptionService.retranscribeAudio(
                     from: audioURL,
                     using: transcriptionConfiguration.model
                 )
+                let newTranscription = result.transcription
 
                 let textToCopy =
-                    newTranscription.enhancedText?.isEmpty == false
+                    result.enhancementFailure == nil && newTranscription.enhancedText?.isEmpty == false
                     ? newTranscription.enhancedText! : newTranscription.text
                 ClipboardManager.copyToClipboard(textToCopy)
 
-                NotificationManager.shared.showNotification(
-                    title: String(localized: "Copied to clipboard"),
-                    type: .success
-                )
+                if let enhancementFailure = result.enhancementFailure {
+                    NotificationManager.shared.showNotification(
+                        title: EnhancementFailureFormatter.transcriptionSavedMessage(
+                            description: enhancementFailure
+                        ),
+                        type: .warning
+                    )
+                } else {
+                    NotificationManager.shared.showNotification(
+                        title: String(localized: "Copied to clipboard"),
+                        type: .success
+                    )
+                }
             } catch {
                 NotificationManager.shared.showNotification(
                     title: String(format: String(localized: "Retry failed: %@"), error.localizedDescription),

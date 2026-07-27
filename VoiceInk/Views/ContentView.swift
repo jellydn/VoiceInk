@@ -16,22 +16,30 @@ enum ViewType: String, CaseIterable, Identifiable {
 }
 
 final class MainWindowNavigation: ObservableObject {
+    static let shared = MainWindowNavigation()
+
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarWindowFlow")
 
     @Published var selectedView: ViewType = .dashboard
 
+    private init() {}
+
     func navigate(to destination: String) {
-        guard let viewType = ViewType.allCases.first(where: { $0.rawValue == destination }) else {
+        guard let viewType = ViewType(rawValue: destination) else {
             logger.error(
                 "🧭 Ignored unknown main-window navigation destination. destination=\(destination, privacy: .public); selectedView=\(self.selectedView.rawValue, privacy: .public)"
             )
             return
         }
 
+        navigate(to: viewType)
+    }
+
+    func navigate(to destination: ViewType) {
         logger.notice(
-            "🧭 Main-window navigation updated. destination=\(destination, privacy: .public); selectedBefore=\(self.selectedView.rawValue, privacy: .public); selectedAfter=\(viewType.rawValue, privacy: .public)"
+            "🧭 Main-window navigation updated. destination=\(destination.rawValue, privacy: .public); selectedBefore=\(self.selectedView.rawValue, privacy: .public); selectedAfter=\(destination.rawValue, privacy: .public)"
         )
-        selectedView = viewType
+        selectedView = destination
     }
 }
 
