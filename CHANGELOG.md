@@ -2,7 +2,22 @@
 
 All notable changes by jellydn to the VoiceInk project are documented in this file.
 
-## [2026-05] - Sync & Fixes
+## [2026-07] - Sync & Fixes
+
+### Upstream Sync (v2.0 → v2.1)
+Merged Beingpax/VoiceInk@aa0db43 (VoiceInk 2.1 — 17 commits). Includes:
+- Mode model availability enforcement (#843)
+- Onboarding per-step skip controls (#845)
+- Enhancement failure diagnostics (#846)
+- AI provider model updates, Gemini integration refresh (#844)
+- Dia browser URL-based mode triggers (#835)
+- Apple Speech asset reservation fix (#842)
+- Mode availability and setup flow improvements (#841)
+- License storage behavior restored upstream
+- FluidAudio package revision update
+- Multiple mode config, validation, and UX improvements
+
+All prior fork modifications preserved after merge.
 
 ### Upstream Sync (v1.79 → v2.0)
 Merged Beingpax/VoiceInk@69ed170 (VoiceInk 2.0). Highlights:
