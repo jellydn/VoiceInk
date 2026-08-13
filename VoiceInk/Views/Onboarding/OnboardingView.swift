@@ -8,8 +8,6 @@ struct OnboardingView: View {
     @EnvironmentObject var aiService: AIService
     @EnvironmentObject var enhancementService: AIEnhancementService
     @StateObject private var coordinator = OnboardingCoordinator()
-    @State private var isShowingSkipOnboardingConfirmation = false
-
     let contentMaxWidth: CGFloat = 560
 
     var body: some View {
@@ -136,12 +134,6 @@ struct OnboardingView: View {
                                 enhancementService: enhancementService
                             )
                         },
-                        onSkip: {
-                            coordinator.flow.skipCurrentExperienceStep(
-                                isTranscriptionSetupReady: isTranscriptionSetupReady,
-                                enhancementService: enhancementService
-                            )
-                        },
                         onShortcutChanged: {
                             coordinator.flow.refreshExperienceModeState(enhancementService: enhancementService)
                         },
@@ -182,6 +174,7 @@ struct OnboardingView: View {
                 case .license:
                     OnboardingLicenseScreen(
                         licenseViewModel: coordinator.licenseViewModel,
+                        licenseKeyDraft: $coordinator.licenseKeyDraft,
                         onBack: {
                             coordinator.flow.goToPreviousLicenseStep(
                                 isTranscriptionSetupReady: isTranscriptionSetupReady
@@ -219,27 +212,9 @@ struct OnboardingView: View {
             .padding(.bottom, 26)
             .allowsHitTesting(false)
 
-            if shouldShowSkipOnboardingButton {
-                skipOnboardingButton
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, 22)
-                    .padding(.trailing, 28)
-                    .transition(.opacity)
-            }
         }
         .frame(minWidth: 820, minHeight: 680)
         .animation(.easeInOut(duration: 0.22), value: coordinator.stage)
-        .animation(.easeInOut(duration: 0.18), value: shouldShowSkipOnboardingButton)
-        .alert("Skip onboarding?", isPresented: $isShowingSkipOnboardingConfirmation) {
-            Button("Continue", role: .cancel) {}
-            Button("Skip Onboarding", role: .destructive) {
-                coordinator.flow.skipOnboarding {
-                    hasCompletedOnboardingV2 = true
-                }
-            }
-        } message: {
-            Text("It is recommended that you complete the onboarding.")
-        }
         .onAppear {
             coordinator.flow.ensureDefaultOnboardingTranscriptionProvider()
             coordinator.flow.refreshTranscriptionSetupVerification()
@@ -291,27 +266,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var shouldShowSkipOnboardingButton: Bool {
-        coordinator.requiredPermissionsGranted && coordinator.stage != .permissions
-    }
-
-    private var skipOnboardingButton: some View {
-        Button {
-            isShowingSkipOnboardingConfirmation = true
-        } label: {
-            Text("Skip Onboarding")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(AppTheme.Text.secondary)
-                .padding(.horizontal, 9)
-                .frame(height: 24)
-                .background(
-                    Capsule()
-                        .fill(AppTheme.Surface.control.opacity(0.55))
-                )
-        }
-        .buttonStyle(.plain)
-        .help("Skip onboarding")
-    }
 }
 
 #Preview {

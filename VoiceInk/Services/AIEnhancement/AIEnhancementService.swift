@@ -4,6 +4,14 @@ import LLMkit
 import SwiftData
 import os
 
+struct AIEnhancementResult: Sendable {
+    let text: String
+    let duration: TimeInterval
+    let promptName: String?
+    let systemMessage: String?
+    let userMessage: String?
+}
+
 @MainActor
 class AIEnhancementService: ObservableObject {
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "AIEnhancementService")
@@ -13,9 +21,6 @@ class AIEnhancementService: ObservableObject {
             savePrompts()
         }
     }
-
-    @Published var lastSystemMessageSent: String?
-    @Published var lastUserMessageSent: String?
 
     var allPrompts: [CustomPrompt] {
         return customPrompts
@@ -73,8 +78,13 @@ class AIEnhancementService: ObservableObject {
     }
 
     func isConfigured(for configuration: EnhancementRuntimeConfiguration) -> Bool {
-        guard configuration.prompt != nil else { return false }
         guard let provider = configuration.provider else { return false }
+
+        if provider == .voiceInkRefine {
+            return aiService.voiceInkRefineService.isAvailableInModes
+        }
+
+        guard configuration.prompt != nil else { return false }
 
         if provider == .localCLI || provider == .ollama {
             return true
@@ -178,35 +188,51 @@ class AIEnhancementService: ObservableObject {
         text: String,
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot?
-    ) async throws -> String {
+    ) async throws -> (text: String, systemMessage: String?, userMessage: String?) {
         guard isConfigured(for: configuration) else {
-            throw EnhancementError.notConfigured
-        }
-
-        guard let prompt = configuration.prompt else {
             throw EnhancementError.notConfigured
         }
 
         guard let provider = configuration.provider else {
             throw EnhancementError.notConfigured
         }
-        let modelName = configuration.modelName ?? provider.defaultModel
 
         guard !text.isEmpty else {
-            return ""
+            return ("", nil, nil)
         }
 
+        if provider == .voiceInkRefine {
+            do {
+                let result = try await aiService.enhanceWithVoiceInkRefine(transcript: text)
+                let filteredResult = AIEnhancementOutputFilter.filter(
+                    result.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+                guard !filteredResult.isEmpty else {
+                    throw EnhancementError.enhancementFailed
+                }
+                return (
+                    filteredResult,
+                    nil,
+                    text
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw EnhancementError.customError(error.localizedDescription)
+            }
+        }
+
+        guard let prompt = configuration.prompt else {
+            throw EnhancementError.notConfigured
+        }
+
+        let modelName = configuration.modelName ?? provider.defaultModel
         let formattedText = "\n<TRANSCRIPT>\n\(text)\n</TRANSCRIPT>"
         let systemMessage = await getSystemMessage(
             prompt: prompt,
             configuration: configuration,
             contextSnapshot: contextSnapshot
         )
-
-        await MainActor.run {
-            self.lastSystemMessageSent = systemMessage
-            self.lastUserMessageSent = formattedText
-        }
 
         if provider == .ollama {
             do {
@@ -216,7 +242,11 @@ class AIEnhancementService: ObservableObject {
                     model: modelName,
                     timeout: baseTimeout
                 )
-                return AIEnhancementOutputFilter.filter(result)
+                return (
+                    AIEnhancementOutputFilter.filter(result),
+                    systemMessage,
+                    formattedText
+                )
             } catch {
                 if let localError = error as? LocalAIError {
                     switch localError {
@@ -236,7 +266,11 @@ class AIEnhancementService: ObservableObject {
             do {
                 let result = try await aiService.enhanceWithLocalCLI(
                     systemPrompt: systemMessage, userPrompt: formattedText)
-                return AIEnhancementOutputFilter.filter(result)
+                return (
+                    AIEnhancementOutputFilter.filter(result),
+                    systemMessage,
+                    formattedText
+                )
             } catch {
                 if let localError = error as? LocalCLIError {
                     throw EnhancementError.customError(
@@ -312,7 +346,13 @@ class AIEnhancementService: ObservableObject {
                     timeout: baseTimeout
                 )
             }
-            return AIEnhancementOutputFilter.filter(result.trimmingCharacters(in: .whitespacesAndNewlines))
+            return (
+                AIEnhancementOutputFilter.filter(
+                    result.trimmingCharacters(in: .whitespacesAndNewlines)
+                ),
+                systemMessage,
+                formattedText
+            )
         } catch let error as LLMKitError {
             throw mapLLMKitError(error)
         } catch let error as EnhancementError {
@@ -366,7 +406,7 @@ class AIEnhancementService: ObservableObject {
         contextSnapshot: RecordingContextSnapshot?,
         maxRetries: Int = 3,
         initialDelay: TimeInterval = 1.0
-    ) async throws -> String {
+    ) async throws -> (text: String, systemMessage: String?, userMessage: String?) {
         var retries = 0
         var currentDelay = initialDelay
 
@@ -439,19 +479,25 @@ class AIEnhancementService: ObservableObject {
         _ text: String,
         configuration: EnhancementRuntimeConfiguration,
         contextSnapshot: RecordingContextSnapshot? = nil
-    ) async throws -> (String, TimeInterval, String?) {
+    ) async throws -> AIEnhancementResult {
         let startTime = Date()
         let promptName = configuration.prompt?.title
 
         do {
-            let result = try await makeRequestWithRetry(
+            let requestResult = try await makeRequestWithRetry(
                 text: text,
                 configuration: configuration,
                 contextSnapshot: contextSnapshot
             )
             let endTime = Date()
             let duration = endTime.timeIntervalSince(startTime)
-            return (result, duration, promptName)
+            return AIEnhancementResult(
+                text: requestResult.text,
+                duration: duration,
+                promptName: promptName,
+                systemMessage: requestResult.systemMessage,
+                userMessage: requestResult.userMessage
+            )
         } catch {
             let errorDescription = EnhancementFailureFormatter.description(for: error)
             let providerName = configuration.provider?.rawValue ?? "Unconfigured"
@@ -519,6 +565,13 @@ class AIEnhancementService: ObservableObject {
         var didUpdateModes = false
 
         for index in updatedConfigurations.indices {
+            if updatedConfigurations[index].selectedAIProvider == AIProvider.voiceInkRefine.rawValue {
+                if updatedConfigurations[index].selectedAIModel != VoiceInkRefineService.modelName {
+                    updatedConfigurations[index].selectedAIModel = VoiceInkRefineService.modelName
+                    didUpdateModes = true
+                }
+            }
+
             let selectedPrompt = updatedConfigurations[index].selectedPrompt
             let hasInvalidPrompt = selectedPrompt.map { !availablePromptIds.contains($0) } ?? false
             let hasMissingPrompt = selectedPrompt == nil

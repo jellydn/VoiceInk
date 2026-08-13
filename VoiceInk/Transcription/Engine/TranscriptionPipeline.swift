@@ -66,7 +66,6 @@ class TranscriptionPipeline {
     ) async {
         let model = transcriptionConfiguration.model
         var finalText: String?
-        var didInsertSessionMetric = false
         var responseError: String?
         var outputForDelivery: OutputRuntimeConfiguration?
         var responseConfig: EnhancementRuntimeConfiguration?
@@ -188,20 +187,20 @@ class TranscriptionPipeline {
 
                     do {
                         let contextSnapshot = await recordingContextSnapshot()
-                        let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(
+                        let enhancementResult = try await enhancementService.enhance(
                             textForAI,
                             configuration: resolvedEnhancementConfiguration,
                             contextSnapshot: contextSnapshot
                         )
-                        transcription.enhancedText = enhancedText
+                        transcription.enhancedText = enhancementResult.text
                         transcription.aiEnhancementModelName =
                             resolvedEnhancementConfiguration.modelName
                             ?? resolvedEnhancementConfiguration.provider?.defaultModel
-                        transcription.promptName = promptName
-                        transcription.enhancementDuration = enhancementDuration
-                        transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
-                        transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
-                        finalText = enhancedText
+                        transcription.promptName = enhancementResult.promptName
+                        transcription.enhancementDuration = enhancementResult.duration
+                        transcription.aiRequestSystemMessage = enhancementResult.systemMessage
+                        transcription.aiRequestUserMessage = enhancementResult.userMessage
+                        finalText = enhancementResult.text
                     } catch {
                         let errorDescription = EnhancementFailureFormatter.description(for: error)
                         let failureMessage = EnhancementFailureFormatter.message(description: errorDescription)
@@ -242,6 +241,8 @@ class TranscriptionPipeline {
         }
 
         func saveTranscriptionAndPostCompletion() {
+            var didInsertSessionMetric = false
+
             if transcription.transcriptionStatus == TranscriptionStatus.completed.rawValue {
                 do {
                     didInsertSessionMetric = try SessionMetricRecorder.recordRecorderSession(

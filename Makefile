@@ -6,7 +6,7 @@ LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
 PROJECT_DIR := $(shell pwd)
 PROJECT_FILE := $(PROJECT_DIR)/VoiceInk.xcodeproj/project.pbxproj
 
-.PHONY: all clean whisper setup build release check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
+.PHONY: all clean whisper setup build local release release-setup check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
 
 # Default target
 all: check release
@@ -181,6 +181,10 @@ run-release:
 		exit 1; \
 	fi
 
+# Store Apple's notarization credentials securely in Keychain.
+release-setup:
+	@./scripts/setup-release-notarization.sh
+
 # Cleanup
 clean:
 	@echo "Cleaning build artifacts..."
@@ -196,6 +200,7 @@ help:
 	@echo "  setup              Build framework and update Xcode project paths automatically"
 	@echo "  build              Build the VoiceInk Xcode project (Debug)"
 	@echo "  release            Build the VoiceInk Xcode project (Release)"
+	@echo "  release-setup      Store notarization credentials in Keychain"
 	@echo "  run                Launch the Debug build"
 	@echo "  run-release        Launch the Release build"
 	@echo "  dev                Build and run the Debug app (for development)"

@@ -11,7 +11,7 @@
 	<key>LSUIElement</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
-	<true/>
+	<false/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>14400</integer>
 	<key>NSMicrophoneUsageDescription</key>

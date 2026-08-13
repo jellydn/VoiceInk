@@ -10,41 +10,7 @@ enum InstalledApps {
             + FileManager.default.urls(for: .applicationDirectory, in: .localDomainMask)
             + FileManager.default.urls(for: .applicationDirectory, in: .systemDomainMask)
 
-        var appURLs: [URL] = []
-
-        func scanDirectory(_ baseURL: URL, depth: Int = 0) {
-            guard depth < 5,
-                let enumerator = FileManager.default.enumerator(
-                    at: baseURL,
-                    includingPropertiesForKeys: [.isApplicationKey, .isDirectoryKey, .isSymbolicLinkKey],
-                    options: [.skipsHiddenFiles]
-                )
-            else { return }
-
-            for item in enumerator {
-                guard let url = item as? URL else { continue }
-                let resolvedURL = url.resolvingSymlinksInPath()
-
-                if resolvedURL.pathExtension == "app" {
-                    appURLs.append(resolvedURL)
-                    enumerator.skipDescendants()
-                    continue
-                }
-
-                var isDirectory: ObjCBool = false
-                if url != resolvedURL,
-                    FileManager.default.fileExists(atPath: resolvedURL.path, isDirectory: &isDirectory),
-                    isDirectory.boolValue
-                {
-                    enumerator.skipDescendants()
-                    scanDirectory(resolvedURL, depth: depth + 1)
-                }
-            }
-        }
-
-        for appDirectory in appDirectories {
-            scanDirectory(appDirectory)
-        }
+        let appURLs = applicationURLs(in: appDirectories)
 
         let apps: [InstalledAppInfo] = appURLs.compactMap { url in
             guard let bundle = Bundle(url: url),
@@ -66,5 +32,60 @@ enum InstalledApps {
 
         var seenBundleIds = Set<String>()
         return apps.filter { seenBundleIds.insert($0.bundleId).inserted }
+    }
+
+    static func applicationURLs(
+        in appDirectories: [URL],
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        var appURLs: [URL] = []
+        var seenPaths = Set<String>()
+
+        for appDirectory in appDirectories {
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: appDirectory,
+                    includingPropertiesForKeys: [.isApplicationKey, .isSymbolicLinkKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                )
+            else {
+                continue
+            }
+
+            for item in enumerator {
+                guard let url = item as? URL else { continue }
+                let values = try? url.resourceValues(forKeys: [.isApplicationKey, .isSymbolicLinkKey])
+
+                if values?.isSymbolicLink == true {
+                    enumerator.skipDescendants()
+
+                    let resolvedURL = url.resolvingSymlinksInPath()
+                    guard resolvedURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame else {
+                        continue
+                    }
+
+                    let path = resolvedURL.standardizedFileURL.path
+                    if seenPaths.insert(path).inserted {
+                        appURLs.append(resolvedURL)
+                    }
+                    continue
+                }
+
+                guard
+                    values?.isApplication == true
+                        || url.pathExtension.caseInsensitiveCompare("app") == .orderedSame
+                else {
+                    continue
+                }
+
+                enumerator.skipDescendants()
+                let path = url.standardizedFileURL.path
+                if seenPaths.insert(path).inserted {
+                    appURLs.append(url)
+                }
+            }
+        }
+
+        return appURLs
     }
 }

@@ -33,7 +33,7 @@ struct EnhancementPromptPopover: View {
                         }
                     )
                 )
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(AppTheme.Text.primary)
                 .font(.headline)
                 .lineLimit(1)
 
@@ -43,7 +43,7 @@ struct EnhancementPromptPopover: View {
             .padding(.top, 8)
 
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(AppTheme.Border.subtle)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
@@ -69,8 +69,8 @@ struct EnhancementPromptPopover: View {
         .frame(width: 200)
         .frame(maxHeight: 340)
         .padding(.vertical, 8)
-        .background(Color.black)
-        .environment(\.colorScheme, .dark)
+        .background(AppTheme.Surface.window)
+        .popoverAppAppearance()
         .onAppear {
             refreshSelectedPrompt()
         }
@@ -99,7 +99,7 @@ struct EnhancementPromptRow: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Text(prompt.title)
-                    .foregroundColor(isDisabled ? .white.opacity(0.4) : .white.opacity(0.9))
+                    .foregroundColor(isDisabled ? AppTheme.Text.disabled : AppTheme.Text.primary)
                     .font(.system(size: 13))
                     .lineLimit(1)
 
@@ -116,7 +116,7 @@ struct EnhancementPromptRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
+        .background(isSelected ? AppTheme.Selection.fill : Color.clear)
         .cornerRadius(4)
     }
 }

@@ -47,6 +47,10 @@ extension AIService {
                 temperature: 0.3,
                 timeout: timeout
             )
+        case .voiceInkRefine:
+            throw EnhancementError.customError(
+                String(localized: "VoiceInk Refine only supports transcript cleanup.")
+            )
         case .ollama:
             result = try await enhanceWithOllama(
                 text: chatPrompt(from: messages),

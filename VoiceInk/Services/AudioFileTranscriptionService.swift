@@ -123,23 +123,23 @@ class AudioTranscriptionService: ObservableObject {
                 enhancementService.isConfigured(for: enhancementConfiguration)
             {
                 do {
-                    let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(
+                    let enhancementResult = try await enhancementService.enhance(
                         text,
                         configuration: enhancementConfiguration
                     )
                     let newTranscription = Transcription(
                         text: originalText,
                         duration: duration,
-                        enhancedText: enhancedText,
+                        enhancedText: enhancementResult.text,
                         audioFileURL: permanentURLString,
                         transcriptionModelName: model.displayName,
                         aiEnhancementModelName: enhancementConfiguration.modelName
                             ?? enhancementConfiguration.provider?.defaultModel,
-                        promptName: promptName,
+                        promptName: enhancementResult.promptName,
                         transcriptionDuration: transcriptionDuration,
-                        enhancementDuration: enhancementDuration,
-                        aiRequestSystemMessage: enhancementService.lastSystemMessageSent,
-                        aiRequestUserMessage: enhancementService.lastUserMessageSent,
+                        enhancementDuration: enhancementResult.duration,
+                        aiRequestSystemMessage: enhancementResult.systemMessage,
+                        aiRequestUserMessage: enhancementResult.userMessage,
                         modeName: modeName,
                         modeEmoji: modeEmoji
                     )

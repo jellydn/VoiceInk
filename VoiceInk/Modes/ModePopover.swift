@@ -18,12 +18,12 @@ struct ModePopover: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Select Mode")
                 .font(.headline)
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(AppTheme.Text.primary)
                 .padding(.horizontal)
                 .padding(.top, 8)
 
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(AppTheme.Border.subtle)
 
             ScrollView {
                 let enabledConfigs = modeManager.enabledConfigurations
@@ -31,10 +31,10 @@ struct ModePopover: View {
                     if enabledConfigs.isEmpty {
                         VStack(alignment: .center, spacing: 8) {
                             Image(systemName: "sparkles")
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(AppTheme.Text.secondary)
                                 .font(.system(size: 16))
                             Text("No Modes Available")
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(AppTheme.Text.primary)
                                 .font(.system(size: 13))
                                 .lineLimit(1)
                                 .truncationMode(.tail)
@@ -63,8 +63,8 @@ struct ModePopover: View {
         .frame(width: 180)
         .frame(maxHeight: 340)
         .padding(.vertical, 8)
-        .background(Color.black)
-        .environment(\.colorScheme, .dark)
+        .background(AppTheme.Surface.window)
+        .popoverAppAppearance()
     }
 }
 
@@ -76,11 +76,15 @@ struct ModeRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                ModeIconView(icon: config.icon, size: config.icon.kind == .emoji ? 14 : 12, color: .white.opacity(0.9))
+                ModeIconView(
+                    icon: config.icon,
+                    size: config.icon.kind == .emoji ? 14 : 12,
+                    color: AppTheme.Text.primary
+                )
                     .frame(width: 16)
 
                 Text(config.name)
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(AppTheme.Text.primary)
                     .font(.system(size: 13))
                     .lineLimit(1)
 
@@ -97,7 +101,7 @@ struct ModeRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
+        .background(isSelected ? AppTheme.Selection.fill : Color.clear)
         .cornerRadius(4)
     }
 }

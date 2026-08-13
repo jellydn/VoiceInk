@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 
 enum AppAppearancePreference: String, CaseIterable, Hashable, Identifiable {
     static let userDefaultsKey = "AppAppearancePreference"
@@ -42,6 +43,18 @@ enum AppAppearancePreference: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    var resolvedColorScheme: ColorScheme {
+        switch self {
+        case .system:
+            let match = NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+            return match == .darkAqua ? .dark : .light
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
+    }
+
     private var appKitAppearance: NSAppearance? {
         switch self {
         case .system:
@@ -51,5 +64,19 @@ enum AppAppearancePreference: String, CaseIterable, Hashable, Identifiable {
         case .dark:
             return NSAppearance(named: .darkAqua)
         }
+    }
+}
+
+private struct PopoverAppAppearanceModifier: ViewModifier {
+    @AppStorage(AppAppearancePreference.userDefaultsKey) private var preference = AppAppearancePreference.system
+
+    func body(content: Content) -> some View {
+        content.preferredColorScheme(preference.resolvedColorScheme)
+    }
+}
+
+extension View {
+    func popoverAppAppearance() -> some View {
+        modifier(PopoverAppAppearanceModifier())
     }
 }

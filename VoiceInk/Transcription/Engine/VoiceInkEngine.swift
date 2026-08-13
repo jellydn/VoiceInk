@@ -104,6 +104,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
     private var activePipelineUseCase: RecordingUseCase = .newSession
     private var activeRecordingContextStore: RecordingContextSnapshotStore?
     private var activeRecordingContextTasks: [Task<Void, Never>] = []
+    private var voiceInkRefinePreparationTask: Task<Void, Never>?
 
     let recorder = Recorder()
     var recordedFile: URL? = nil
@@ -237,7 +238,9 @@ class VoiceInkEngine: NSObject, ObservableObject {
             requestRecordPermission { [self] granted in
                 if granted {
                     Task { @MainActor [self] in
-                        guard await self.passesRecordingPreflight() else { return }
+                        guard await self.passesRecordingPreflight() else {
+                            return
+                        }
 
                         let startID = UUID()
                         self.activeRecordingStartID = startID
@@ -354,6 +357,8 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 _ = realtimeAudioGate.reset()
                             }
 
+                            self.scheduleVoiceInkRefinePreparation(for: startID)
+
                             Task { @MainActor [weak self] in
                                 guard let self else { return }
 
@@ -378,6 +383,9 @@ class VoiceInkEngine: NSObject, ObservableObject {
                                 } else if let fluidAudioModel = currentModel as? FluidAudioModel {
                                     try? await self.serviceRegistry.fluidAudioTranscriptionService.loadModel(
                                         for: fluidAudioModel)
+                                } else if let transcribeCppModel = currentModel as? TranscribeCppModel {
+                                    try? await self.serviceRegistry.transcribeCppTranscriptionService.loadModel(
+                                        for: transcribeCppModel)
                                 }
 
                             }
@@ -385,7 +393,10 @@ class VoiceInkEngine: NSObject, ObservableObject {
                         } catch {
                             activeModeTask.cancel()
                             self.logger.error("Recording failed to start: \(error, privacy: .public)")
-                            await self.recorder.stopRecording()
+                            let audioFailure = self.recordingAudioFailure(for: error)
+                            if audioFailure == nil {
+                                await self.recorder.stopRecording()
+                            }
                             self.cancelCurrentSession()
                             if let recordedFile = self.recordedFile {
                                 try? FileManager.default.removeItem(at: recordedFile)
@@ -395,8 +406,17 @@ class VoiceInkEngine: NSObject, ObservableObject {
                             self.activeRecordingStartID = nil
                             self.clearActiveRecordingContext()
                             await self.cleanupResources()
-                            NotificationManager.shared.showNotification(
-                                title: String(localized: "Recording failed to start"), type: .error)
+                            if let failure = audioFailure {
+                                NotificationManager.shared.showNotification(
+                                    title: failure.title,
+                                    type: .error,
+                                    duration: 7.0,
+                                    actionButton: (failure.actionLabel, failure.action)
+                                )
+                            } else {
+                                NotificationManager.shared.showNotification(
+                                    title: String(localized: "Recording failed to start"), type: .error)
+                            }
                             await self.recorderUIManager?.dismissRecorderPanel()
                         }
                     }
@@ -410,8 +430,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
     private func requestRecordPermission(response: @escaping (Bool) -> Void) {
         response(true)
     }
-
-    // MARK: - Recording Preflight
 
     @MainActor
     private func recordingModelFailure(
@@ -604,7 +622,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
 
         let didFinishActivePipeline = activePipelineTranscriptionID == transcriptionID
         if didFinishActivePipeline {
-            await finishRecorderSession()
             await cleanupResources()
             activePipelineTranscriptionID = nil
             currentSession = nil
@@ -640,7 +657,7 @@ class VoiceInkEngine: NSObject, ObservableObject {
         case .starting, .recording:
             requestRecordingCancellation()
             await finishActiveRecorderCancellation()
-            shouldFinishSessionImmediately = true
+            shouldFinishSessionImmediately = false
         case .transcribing, .enhancing:
             requestRecordingCancellation()
             partialTranscript = ""
@@ -673,7 +690,6 @@ class VoiceInkEngine: NSObject, ObservableObject {
         recordedFile = nil
         recordingState = .idle
         await cleanupResources()
-        await finishRecorderSession()
     }
 
     private func requestRecordingCancellation() {
@@ -753,6 +769,59 @@ class VoiceInkEngine: NSObject, ObservableObject {
         return (mode.name, mode.icon.value)
     }
 
+    private func scheduleVoiceInkRefinePreparation(for recordingStartID: UUID) {
+        voiceInkRefinePreparationTask?.cancel()
+
+        voiceInkRefinePreparationTask = Task { @MainActor [weak self] in
+            guard let self,
+                self.recordingState == .recording,
+                self.activeRecordingStartID == recordingStartID,
+                !self.shouldCancelRecording,
+                let enhancementService = self.enhancementService,
+                let aiService = enhancementService.getAIService()
+            else {
+                return
+            }
+
+            let initialConfiguration = ModeRuntimeResolver.currentEnhancementConfiguration(
+                enhancementService: enhancementService,
+                aiService: aiService
+            )
+            guard initialConfiguration.isEnabled,
+                initialConfiguration.provider == .voiceInkRefine
+            else {
+                return
+            }
+
+            // Preserve an already-warm XPC model immediately, while retaining the
+            // debounce below before any new model preparation begins.
+            await aiService.voiceInkRefineService.keepPreparedModelWarmForRecording()
+
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+            } catch {
+                return
+            }
+
+            guard self.recordingState == .recording,
+                self.activeRecordingStartID == recordingStartID,
+                !self.shouldCancelRecording
+            else {
+                return
+            }
+
+            let configuration = ModeRuntimeResolver.currentEnhancementConfiguration(
+                enhancementService: enhancementService,
+                aiService: aiService
+            )
+            guard configuration.isEnabled, configuration.provider == .voiceInkRefine else {
+                return
+            }
+
+            await aiService.voiceInkRefineService.prepareForRecording()
+        }
+    }
+
     // MARK: - Resource Cleanup
 
     private func cancelPipelineSession(transcriptionID: UUID, session: TranscriptionSession?) {
@@ -774,13 +843,23 @@ class VoiceInkEngine: NSObject, ObservableObject {
     }
 
     private func finishRecorderSession() async {
+        let preparationTask = voiceInkRefinePreparationTask
+        voiceInkRefinePreparationTask = nil
+        preparationTask?.cancel()
+        await preparationTask?.value
+
         enhancementService?.clearCapturedContexts()
+        await enhancementService?
+            .getAIService()?
+            .voiceInkRefineService
+            .unloadPreparedModelIfNeeded()
     }
 
     func cleanupResources() async {
         logger.notice("cleanupResources: releasing model resources")
         activeRecordingStartID = nil
         activeRecordingUseCase = .newSession
+        await finishRecorderSession()
         await whisperModelManager.cleanupResources()
         await serviceRegistry.cleanup()
         logger.notice("cleanupResources: completed")

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct LocalEnhancementProviderManagementView: View {
+struct LocalEnhancementServiceManagementView: View {
     @EnvironmentObject private var aiService: AIService
 
     @State private var isOllamaExpanded = false
@@ -20,8 +20,8 @@ struct LocalEnhancementProviderManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ProviderSectionHeader(
-                title: "Local & CLI Providers",
-                subtitle: "Run enhancement with Ollama on this Mac, or send it to any CLI command."
+                title: "Local Enhancement Services",
+                subtitle: "Connect Ollama or configure a CLI command for local enhancement."
             )
             .padding(.top, 8)
 
@@ -40,7 +40,7 @@ struct LocalEnhancementProviderManagementView: View {
                     .padding(.leading, 58)
 
                 LocalProviderDisclosureRow(
-                    title: Text("Local CLI"),
+                    title: Text("CLI Provider"),
                     subtitle: Text("Claude, Codex, scripts, or any command"),
                     systemImage: "terminal",
                     statusTitle: isLocalCLIConfigured ? Text("Configured") : Text("Not configured"),

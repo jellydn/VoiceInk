@@ -29,6 +29,7 @@ struct ModelManagementView: View {
     @StateObject private var customModelManager = CustomCloudModelManager.shared
     @StateObject private var customAIProviderManager = CustomAIProviderManager.shared
     @ObservedObject private var warmupCoordinator = WhisperModelWarmupCoordinator.shared
+    @ObservedObject private var voiceInkRefineService = VoiceInkRefineService.shared
 
     @State private var selectedFilter: ModelFilter = .local
     @State private var activePanel: ModelManagementPanel?
@@ -242,36 +243,49 @@ struct ModelManagementView: View {
 
     private var localModelsSection: some View {
         VStack(spacing: 12) {
-            ForEach(localModels, id: \.id) { model in
-                let isWarming =
-                    (model as? WhisperModel).map { whisperModel in
-                        warmupCoordinator.isWarming(modelNamed: whisperModel.name)
-                    } ?? false
+            VoiceInkRefineModelCardView(
+                service: voiceInkRefineService,
+                deleteAction: confirmDeleteVoiceInkRefineModel
+            )
 
-                ModelCardView(
-                    model: model,
-                    fluidAudioModelManager: fluidAudioModelManager,
-                    isDownloaded: whisperModelManager.availableModels.contains { $0.name == model.name },
-                    downloadProgress: whisperModelManager.downloadProgress,
-                    modelURL: whisperModelManager.availableModels.first { $0.name == model.name }?.url,
-                    isWarming: isWarming,
-                    deleteAction: {
-                        confirmDeleteLocalModel(model)
-                    },
-                    downloadAction: {
-                        if let whisperModel = model as? WhisperModel {
-                            Task { await whisperModelManager.downloadModel(whisperModel) }
-                        }
-                    }
-                )
+            ForEach(appleSpeechModels, id: \.id) { model in
+                localModelCard(model)
+            }
+
+            ForEach(downloadableLocalModels, id: \.id) { model in
+                localModelCard(model)
             }
 
             importLocalModelButton
 
-            LocalEnhancementProviderManagementView()
+            LocalEnhancementServiceManagementView()
                 .environmentObject(aiService)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func localModelCard(_ model: any TranscriptionModel) -> some View {
+        let isWarming =
+            (model as? WhisperModel).map { whisperModel in
+                warmupCoordinator.isWarming(modelNamed: whisperModel.name)
+            } ?? false
+
+        return ModelCardView(
+            model: model,
+            fluidAudioModelManager: fluidAudioModelManager,
+            isDownloaded: whisperModelManager.availableModels.contains { $0.name == model.name },
+            downloadProgress: whisperModelManager.downloadProgress,
+            modelURL: whisperModelManager.availableModels.first { $0.name == model.name }?.url,
+            isWarming: isWarming,
+            deleteAction: {
+                confirmDeleteLocalModel(model)
+            },
+            downloadAction: {
+                if let whisperModel = model as? WhisperModel {
+                    Task { await whisperModelManager.downloadModel(whisperModel) }
+                }
+            }
+        )
     }
 
     private var importLocalModelButton: some View {
@@ -335,9 +349,18 @@ struct ModelManagementView: View {
 
     private var localModels: [any TranscriptionModel] {
         transcriptionModelManager.allAvailableModels.filter {
-            ($0.provider == .whisper || $0.provider == .nativeApple || $0.provider == .fluidAudio)
+            ($0.provider == .whisper || $0.provider == .nativeApple || $0.provider == .fluidAudio
+                || $0.provider == .transcribeCpp)
                 && transcriptionModelManager.isAvailableOnCurrentOS($0)
         }
+    }
+
+    private var appleSpeechModels: [any TranscriptionModel] {
+        localModels.filter { $0.provider == .nativeApple }
+    }
+
+    private var downloadableLocalModels: [any TranscriptionModel] {
+        localModels.filter { $0.provider != .nativeApple }
     }
 
     private func confirmDeleteLocalModel(_ model: any TranscriptionModel) {
@@ -367,6 +390,19 @@ struct ModelManagementView: View {
         deleteActionClosure = {
             customModelManager.removeCustomModel(withId: model.id)
             transcriptionModelManager.refreshAllAvailableModels()
+        }
+        isShowingDeleteAlert = true
+    }
+
+    private func confirmDeleteVoiceInkRefineModel() {
+        alertTitle = String(localized: "Delete VoiceInk Refine?")
+        alertMessage = String(
+            localized: "The model will need to be downloaded again before a Mode can use it."
+        )
+        deleteActionClosure = {
+            Task {
+                await voiceInkRefineService.deleteModel()
+            }
         }
         isShowingDeleteAlert = true
     }

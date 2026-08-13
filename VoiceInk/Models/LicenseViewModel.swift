@@ -1,9 +1,8 @@
 import AppKit
 import Foundation
-import os
 
 @MainActor
-class LicenseViewModel: ObservableObject {
+final class LicenseViewModel: ObservableObject {
     enum LicenseState: Equatable {
         case unlicensed
         case trial(daysRemaining: Int)
@@ -11,29 +10,25 @@ class LicenseViewModel: ObservableObject {
         case licensed
     }
 
+    static let shared = LicenseViewModel()
+
     @Published private(set) var licenseState: LicenseState = .licensed
-    @Published var licenseKey: String = ""
+    @Published private(set) var licenseKey = ""
     @Published var isValidating = false
     @Published private(set) var isDeactivating = false
     @Published var validationMessage: String?
-    @Published var validationSuccess: Bool = false
-    @Published private(set) var activationsLimit: Int = 0
-
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "LicenseViewModel")
-    private let userDefaults = UserDefaults.standard
+    @Published var validationSuccess = false
+    @Published private(set) var activationsLimit = 0
 
     init() {
-        // Fork: always licensed; no trial or paywall gating
+        // Fork: always licensed; no trial or paywall gating.
         licenseState = .licensed
     }
 
-    func startTrial() {
+    @discardableResult
+    func startTrial() -> Bool {
         licenseState = .licensed
-        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
-    }
-
-    private func loadLicenseState() {
-        licenseState = .licensed
+        return true
     }
 
     func refreshLicenseState() {
@@ -41,6 +36,10 @@ class LicenseViewModel: ObservableObject {
     }
 
     var isLicensed: Bool {
+        true
+    }
+
+    var hasVerifiedLicense: Bool {
         true
     }
 
@@ -52,35 +51,45 @@ class LicenseViewModel: ObservableObject {
         nil
     }
 
+    var diagnosticLicenseStatus: String {
+        "Licensed (Fork — always licensed)"
+    }
+
     func openPurchaseLink() {
         if let url = URL(string: "https://tryvoiceink.com/buy") {
             NSWorkspace.shared.open(url)
         }
     }
 
-    func validateLicense() async {
+    func validateLicense(_ submittedKey: String) async {
+        guard !isValidating else { return }
+        isValidating = true
+        defer { isValidating = false }
+
         licenseState = .licensed
+        if !submittedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            licenseKey = submittedKey
+        }
         validationSuccess = true
         validationMessage = String(localized: "License checks are disabled in this fork.")
-        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
+        NotificationCenter.default.post(name: .licenseCelebrationRequested, object: nil)
     }
 
     func deactivateLicense() async {
         guard !isDeactivating else { return }
         isDeactivating = true
-        validationMessage = nil
         defer { isDeactivating = false }
 
+        // Fork: nothing to deactivate — remain licensed.
         licenseState = .licensed
         licenseKey = ""
         validationMessage = nil
         validationSuccess = false
         activationsLimit = 0
-        NotificationCenter.default.post(name: .licenseStatusChanged, object: nil)
     }
 }
 
-// UserDefaults extension for non-sensitive license settings
+// UserDefaults extension for non-sensitive license settings.
 extension UserDefaults {
     var activationsLimit: Int {
         get { integer(forKey: "VoiceInkActivationsLimit") }

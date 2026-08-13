@@ -148,14 +148,17 @@ enum ModeRuntimeResolver {
         aiService: AIService
     ) -> EnhancementRuntimeConfiguration {
         let mode = mode ?? ModeManager.shared.currentEffectiveConfiguration
-        let prompt = resolvedPrompt(
-            promptId: mode?.selectedPrompt,
-            enhancementService: enhancementService
-        )
         let provider = resolvedProvider(
             providerName: mode?.selectedAIProvider,
             aiService: aiService
         )
+        let prompt =
+            provider == .voiceInkRefine
+            ? nil
+            : resolvedPrompt(
+                promptId: mode?.selectedPrompt,
+                enhancementService: enhancementService
+            )
         let modelName = resolvedEnhancementModelName(
             provider: provider,
             configuredModelName: mode?.selectedAIModel,
@@ -168,9 +171,9 @@ enum ModeRuntimeResolver {
             prompt: prompt,
             provider: provider,
             modelName: modelName,
-            useClipboardContext: mode?.useClipboardContext ?? false,
-            useSelectedTextContext: mode?.useSelectedTextContext ?? true,
-            useScreenCaptureContext: mode?.useScreenCapture ?? false
+            useClipboardContext: provider == .voiceInkRefine ? false : mode?.useClipboardContext ?? false,
+            useSelectedTextContext: provider == .voiceInkRefine ? false : mode?.useSelectedTextContext ?? true,
+            useScreenCaptureContext: provider == .voiceInkRefine ? false : mode?.useScreenCapture ?? false
         )
     }
 
@@ -202,11 +205,11 @@ enum ModeRuntimeResolver {
         providerName: String?,
         aiService: AIService
     ) -> AIProvider? {
-        if let providerName,
-            let provider = AIProvider(rawValue: providerName),
-            aiService.connectedProviders.contains(provider)
-        {
-            return provider
+        if let providerName {
+            guard let provider = AIProvider(rawValue: providerName) else {
+                return nil
+            }
+            return aiService.connectedProviders.contains(provider) ? provider : nil
         }
 
         return aiService.connectedProviders.first
@@ -221,6 +224,10 @@ enum ModeRuntimeResolver {
 
         if provider == .localCLI {
             return nil
+        }
+
+        if provider == .voiceInkRefine {
+            return provider.defaultModel
         }
 
         let models = aiService.availableModels(for: provider)

@@ -174,7 +174,7 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                 Spacer(minLength: 0)
                 RecorderStatusDisplay(
                     currentState: stateProvider.recordingState,
-                    audioMeter: recorder.audioMeter,
+                    audioMeterProvider: recorder.audioMeterSnapshot,
                     menuBarHeight: notchHeight
                 )
             }

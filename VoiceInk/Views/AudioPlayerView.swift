@@ -526,19 +526,32 @@ struct AudioPlayerView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Select Prompt")
                 .font(.headline)
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(AppTheme.Text.primary)
                 .padding(.horizontal)
                 .padding(.top, 8)
 
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(AppTheme.Border.subtle)
 
             ScrollView {
                 let prompts = enhancementService.allPrompts
+                let customPromptsUnavailable =
+                    currentEnhancementConfiguration?.provider == .voiceInkRefine
                 VStack(alignment: .leading, spacing: 4) {
+                    if customPromptsUnavailable {
+                        Text(
+                            "Custom prompts aren't available with VoiceInk Refine. Select a Mode that uses another AI provider."
+                        )
+                        .foregroundColor(AppTheme.Text.secondary)
+                        .font(.system(size: 12))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 6)
+                    }
+
                     if prompts.isEmpty {
                         Text("No Prompts Available")
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(AppTheme.Text.primary)
                             .font(.system(size: 13))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -547,11 +560,12 @@ struct AudioPlayerView: View {
                             EnhancementPromptRow(
                                 prompt: prompt,
                                 isSelected: currentEnhancementConfiguration?.prompt?.id == prompt.id,
-                                isDisabled: false,
+                                isDisabled: customPromptsUnavailable,
                                 action: {
                                     selectPromptForReEnhancement(prompt)
                                 }
                             )
+                            .disabled(customPromptsUnavailable)
                         }
                     }
                 }
@@ -561,8 +575,8 @@ struct AudioPlayerView: View {
         .frame(width: 220)
         .frame(maxHeight: 340)
         .padding(.vertical, 8)
-        .background(Color.black)
-        .environment(\.colorScheme, .dark)
+        .background(AppTheme.Surface.window)
+        .popoverAppAppearance()
     }
 
     private func selectPromptForReEnhancement(_ prompt: CustomPrompt) {
@@ -599,18 +613,18 @@ struct AudioPlayerView: View {
 
         Task {
             do {
-                let (enhancedText, enhancementDuration, promptName) = try await enhancementService.enhance(
+                let enhancementResult = try await enhancementService.enhance(
                     transcription.text,
                     configuration: enhancementConfiguration
                 )
                 await MainActor.run {
-                    transcription.enhancedText = enhancedText
+                    transcription.enhancedText = enhancementResult.text
                     transcription.aiEnhancementModelName =
                         enhancementConfiguration.modelName ?? enhancementConfiguration.provider?.defaultModel
-                    transcription.promptName = promptName
-                    transcription.enhancementDuration = enhancementDuration
-                    transcription.aiRequestSystemMessage = enhancementService.lastSystemMessageSent
-                    transcription.aiRequestUserMessage = enhancementService.lastUserMessageSent
+                    transcription.promptName = enhancementResult.promptName
+                    transcription.enhancementDuration = enhancementResult.duration
+                    transcription.aiRequestSystemMessage = enhancementResult.systemMessage
+                    transcription.aiRequestUserMessage = enhancementResult.userMessage
                     try? modelContext.save()
 
                     isReEnhancing = false

@@ -1,5 +1,4 @@
 import Foundation
-import LaunchAtLogin
 import SwiftData
 
 enum BackupImportError: LocalizedError {
@@ -153,7 +152,7 @@ enum BackupImporter {
             recordingShortcutManager.middleClickActivationDelay = middleClickDelay
         }
         if let launch = general.launchAtLoginEnabled {
-            LaunchAtLogin.isEnabled = launch
+            LaunchAtLoginManager.shared.setEnabled(launch)
         }
         if let menuOnly = general.isMenuBarOnly {
             menuBarManager.isMenuBarOnly = menuOnly

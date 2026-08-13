@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AudioVisualizer: View {
-    let audioMeter: AudioMeter
+    let audioMeterProvider: () -> AudioMeter
     let color: Color
     let isActive: Bool
 
@@ -13,8 +13,8 @@ struct AudioVisualizer: View {
 
     private let phases: [Double]
 
-    init(audioMeter: AudioMeter, color: Color, isActive: Bool) {
-        self.audioMeter = audioMeter
+    init(audioMeterProvider: @escaping () -> AudioMeter, color: Color, isActive: Bool) {
+        self.audioMeterProvider = audioMeterProvider
         self.color = color
         self.isActive = isActive
         self.phases = (0..<barCount).map { Double($0) * 0.4 }
@@ -22,17 +22,26 @@ struct AudioVisualizer: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.016)) { context in
+            let audioMeter = audioMeterProvider()
+
             HStack(spacing: barSpacing) {
                 ForEach(0..<barCount, id: \.self) { index in
                     RoundedRectangle(cornerRadius: barWidth / 2)
                         .fill(color.opacity(0.85))
-                        .frame(width: barWidth, height: barHeight(for: index, at: context.date))
+                        .frame(
+                            width: barWidth,
+                            height: barHeight(
+                                for: index,
+                                at: context.date,
+                                audioMeter: audioMeter
+                            )
+                        )
                 }
             }
         }
     }
 
-    private func barHeight(for index: Int, at date: Date) -> CGFloat {
+    private func barHeight(for index: Int, at date: Date, audioMeter: AudioMeter) -> CGFloat {
         guard isActive else { return minHeight }
 
         let time = date.timeIntervalSince1970

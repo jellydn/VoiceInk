@@ -2,7 +2,6 @@ import AppIntents
 import AppKit
 import FluidAudio
 import OSLog
-import Sparkle
 import SwiftData
 import SwiftUI
 
@@ -22,6 +21,7 @@ struct VoiceInkApp: App {
     @StateObject private var mainWindowNavigation = MainWindowNavigation.shared
     @StateObject private var aiService = AIService()
     @StateObject private var enhancementService: AIEnhancementService
+    @StateObject private var licenseViewModel = LicenseViewModel.shared
     @StateObject private var activeWindowService = ActiveWindowService.shared
     @AppStorage("hasCompletedOnboardingV2") private var hasCompletedOnboardingV2 = false
     @AppStorage("enableAnnouncements") private var enableAnnouncements = true
@@ -297,6 +297,8 @@ struct VoiceInkApp: App {
 
                             showLaunchRemindersIfNeeded()
 
+                            GitHubStarPromptCoordinator.shared.scheduleIfNeeded(modelContainer: container)
+
                             // Run due audio-only cleanup and schedule future checks when transcript cleanup is not managing retention.
                             if !UserDefaults.standard.bool(forKey: CleanupSettingsKeys.isTranscriptionCleanupEnabled)
                                 && UserDefaults.standard.bool(forKey: CleanupSettingsKeys.isAudioCleanupEnabled)
@@ -310,9 +312,6 @@ struct VoiceInkApp: App {
 
                             // Process any pending open-file request now that the main ContentView is ready.
                             if let pendingURL = appDelegate.pendingOpenFileURL {
-                                Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarWindowFlow").notice(
-                                    "🧭 Processing pending media URL after main ContentView appeared. urlLastPath=\(pendingURL.lastPathComponent, privacy: .private(mask: .hash))"
-                                )
                                 NotificationCenter.default.post(
                                     name: .navigateToDestination, object: nil,
                                     userInfo: ["destination": "Transcribe Audio"])
@@ -350,6 +349,12 @@ struct VoiceInkApp: App {
                 }
             }
             .confettiCelebrationPresenter()
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                licenseViewModel.refreshLicenseState()
+            }
+            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
+                licenseViewModel.refreshLicenseState()
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: AppWindowLayout.width, height: AppWindowLayout.minimumHeight)
@@ -430,8 +435,6 @@ struct VoiceInkApp: App {
 }
 
 private struct MainWindowRequestBridge: View {
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MenuBarWindowFlow")
-
     @Environment(\.openWindow) private var openWindow
     let menuBarManager: MenuBarManager
 
@@ -440,60 +443,17 @@ private struct MainWindowRequestBridge: View {
             .frame(width: 0, height: 0)
             .onReceive(NotificationCenter.default.publisher(for: .showMainWindowRequested)) { _ in
                 let existingWindow = WindowManager.shared.currentMainWindow()
-                logger.notice(
-                    "🧭 SwiftUI main-window request bridge received request. hasExistingMainWindow=\((existingWindow != nil), privacy: .public); menuBarOnly=\(self.menuBarManager.isMenuBarOnly, privacy: .public); activationPolicy=\(WindowDiagnostics.activationPolicyDescription(NSApplication.shared.activationPolicy()), privacy: .public); snapshot=\(WindowDiagnostics.windowSnapshot(), privacy: .public)"
-                )
 
                 if existingWindow == nil {
-                    menuBarManager.activateForPresentedWindow(reason: "SwiftUIBridgeCreateMainWindow")
+                    menuBarManager.activateForPresentedWindow()
                     WindowManager.shared.prepareForUserRequestedMainWindow()
                     openWindow(id: AppWindowID.main)
-                    logger.notice("🧭 SwiftUI bridge requested main window creation via openWindow.")
                 } else {
-                    menuBarManager.activateForPresentedWindow(reason: "SwiftUIBridgePresentMainWindow")
+                    menuBarManager.activateForPresentedWindow()
                     openWindow(id: AppWindowID.main)
                     WindowManager.shared.showMainWindow()
-                    logger.notice("🧭 SwiftUI bridge requested existing main window presentation.")
                 }
             }
-    }
-}
-
-class UpdaterViewModel: ObservableObject {
-    private let updaterController: SPUStandardUpdaterController
-
-    @Published var canCheckForUpdates = false
-    @Published var automaticallyChecksForUpdates = false
-
-    init() {
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-
-        automaticallyChecksForUpdates = updaterController.updater.automaticallyChecksForUpdates
-
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
-
-        updaterController.updater.publisher(for: \.automaticallyChecksForUpdates)
-            .assign(to: &$automaticallyChecksForUpdates)
-    }
-
-    func setAutomaticallyChecksForUpdates(_ value: Bool) {
-        updaterController.updater.automaticallyChecksForUpdates = value
-    }
-
-    func checkForUpdates() {
-        // This is for manual checks - will show UI
-        updaterController.checkForUpdates(nil)
-    }
-}
-
-struct CheckForUpdatesView: View {
-    @ObservedObject var updaterViewModel: UpdaterViewModel
-
-    var body: some View {
-        Button("Check for Updates…", action: updaterViewModel.checkForUpdates)
-            .disabled(!updaterViewModel.canCheckForUpdates)
     }
 }
 
