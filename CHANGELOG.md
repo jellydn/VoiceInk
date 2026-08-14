@@ -2,6 +2,31 @@
 
 All notable changes by jellydn to the VoiceInk project are documented in this file.
 
+## [2026-08] - Sync & Fixes
+
+### Upstream Sync (v2.1 → v2.11)
+Merged Beingpax/VoiceInk@eb5d0b3 (VoiceInk 2.11). Highlights:
+- Simplified Chinese + complete German localizations (#877)
+- Clamshell microphone routing fixes and closed-lid guidance (#871)
+- Dashboard update availability via Sparkle (#870)
+- Cohere Transcribe support (#869)
+- License keychain resilience improvements (#865)
+- Cleaner onboarding flow: 3 experience steps, GitHub star prompt (#864)
+- VoiceInk Refine local enhancement (local MLX-based refinement) + model downloads
+- Native provider key verification; gpt-5.6 models; unicode-aware word replacements
+- New `VoiceInkRefineXPC` XPC service target
+
+Fork merge resolutions:
+- `LicenseViewModel`: kept always-licensed / `canUseApp` / no paywall while retaining upstream's `shared` singleton, `hasVerifiedLicense`, `diagnosticLicenseStatus`, and `validateLicense(_:)` signature
+- `project.pbxproj`: kept single relative-path `whisper.xcframework` reference + `LOCAL_BUILD` flag; adopted upstream v2.11/211 version
+- `Makefile`: kept fork dev workflow (`fix-xcode-path`, `dev-hot`, `kill-app`, `run-release`, unsigned release); added upstream `release-setup`
+- `.gitignore`: kept fork `*.dmg` + `.claude/settings.local.json`
+
+### Build fix: skip mlx-swift plugin/macro validation
+Upstream's new VoiceInk Refine feature pulls in `mlx-swift` 0.31.6 (swift-tools 6.3 + `experimentalCGen`) which declares a `CudaBuild` build-tool plugin and `MLXHuggingFaceMacros` macro. Non-interactive `xcodebuild` can't validate these, failing the build at the dependency phase (before any VoiceInk source compiles). Added `-skipPackagePluginValidation -skipMacroValidation` to `make build` / `make local` / `make release` and the beta-release workflow.
+
+All prior fork modifications preserved after merge.
+
 ## [2026-07] - Sync & Fixes
 
 ### Upstream Sync (v2.0 → v2.1)

@@ -117,7 +117,7 @@ setup: whisper fix-xcode-path
 	@echo "✓ Xcode project has been automatically updated to reference the framework."
 
 build: setup
-	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" build
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" -skipPackagePluginValidation -skipMacroValidation build
 
 # Build for local use without Apple Developer certificate
 local: check setup
@@ -132,6 +132,8 @@ local: check setup
 		DEVELOPMENT_TEAM="" \
 		CODE_SIGN_ENTITLEMENTS="$(CURDIR)/VoiceInk/VoiceInk.local.entitlements" \
 		SWIFT_ACTIVE_COMPILATION_CONDITIONS='$$(inherited) LOCAL_BUILD' \
+		-skipPackagePluginValidation \
+		-skipMacroValidation \
 		build
 	@APP_PATH="$(LOCAL_DERIVED_DATA)/Build/Products/Debug/VoiceInk.app" && \
 	if [ -d "$$APP_PATH" ]; then \
@@ -153,7 +155,7 @@ local: check setup
 
 # Release build
 release: setup
-	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release CODE_SIGN_IDENTITY="" build
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release CODE_SIGN_IDENTITY="" -skipPackagePluginValidation -skipMacroValidation build
 
 # Run application (Debug configuration by default)
 run:
