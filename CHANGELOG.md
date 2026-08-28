@@ -4,6 +4,25 @@ All notable changes by jellydn to the VoiceInk project are documented in this fi
 
 ## [2026-08] - Sync & Fixes
 
+### Upstream Sync (v2.11 → v2.13)
+Merged Beingpax/VoiceInk@68b871e (VoiceInk 2.13). Highlights:
+- Gemini transcription support (#906)
+- SenseVoice Small transcription support (#904)
+- Audio lifecycle recovery: centralized lifecycle events (#903)
+- Escape-cancel recording behavior fixes (#902)
+- Recorder panel rebuilt after wake instead of reused (#900)
+- Whisper language prompt fixes (#897)
+- Mistral model defaults + refreshed macOS app icons; Gemini 3.7 Flash support
+- Local build reliability: stable Apple Development signing when available (LOCAL_CODESIGN_IDENTITY), keychain fix
+- Clamshell headset microphone routing fix (#888)
+- Updated Deepgram models
+
+Fork merge resolutions:
+- `LicenseViewModel`: upstream now uses the same `#if LOCAL_BUILD` always-licensed approach the fork pioneered — adopted upstream's version verbatim (the fork's project.pbxproj already bakes `LOCAL_BUILD` into all four configurations). Removes future merge friction while preserving always-licensed behavior.
+- `Makefile`: kept fork dev workflow (`fix-xcode-path`, `dev-hot`, `kill-app`, `run-release`, unsigned `release`), adopted upstream's stable-signing `local` target + `LOCAL_CODESIGN_IDENTITY`.
+
+All prior fork modifications preserved after merge.
+
 ### Upstream Sync (v2.1 → v2.11)
 Merged Beingpax/VoiceInk@eb5d0b3 (VoiceInk 2.11). Highlights:
 - Simplified Chinese + complete German localizations (#877)
