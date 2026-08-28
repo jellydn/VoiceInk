@@ -5,6 +5,7 @@ FRAMEWORK_PATH := $(WHISPER_CPP_DIR)/build-apple/whisper.xcframework
 LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
 PROJECT_DIR := $(shell pwd)
 PROJECT_FILE := $(PROJECT_DIR)/VoiceInk.xcodeproj/project.pbxproj
+LOCAL_CODESIGN_IDENTITY ?=
 
 .PHONY: all clean whisper setup build local release release-setup check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
 
@@ -119,15 +120,33 @@ setup: whisper fix-xcode-path
 build: setup
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" -skipPackagePluginValidation -skipMacroValidation build
 
-# Build for local use without Apple Developer certificate
+# Build locally with stable Apple Development signing when available.
 local: check setup
 	@echo "Building VoiceInk for local use (no Apple Developer certificate required)..."
 	@rm -rf "$(LOCAL_DERIVED_DATA)"
+	@SIGNING_IDENTITY="$(LOCAL_CODESIGN_IDENTITY)"; \
+	if [ -z "$$SIGNING_IDENTITY" ]; then \
+		SIGNING_IDENTITIES=$$(security find-identity -v -p codesigning 2>/dev/null | awk '/"Apple Development: / { print $$2 }'); \
+		SIGNING_IDENTITY_COUNT=$$(printf '%s\n' "$$SIGNING_IDENTITIES" | awk 'NF { count++ } END { print count + 0 }'); \
+		if [ "$$SIGNING_IDENTITY_COUNT" -eq 1 ]; then \
+			SIGNING_IDENTITY=$$(printf '%s\n' "$$SIGNING_IDENTITIES" | awk 'NF { print; exit }'); \
+		elif [ "$$SIGNING_IDENTITY_COUNT" -gt 1 ]; then \
+			echo "Multiple Apple Development identities found; set LOCAL_CODESIGN_IDENTITY to choose one; using ad-hoc signing"; \
+		fi; \
+	fi; \
+	if [ -n "$$SIGNING_IDENTITY" ] && [ "$$SIGNING_IDENTITY" != "-" ]; then \
+		SIGNING_REQUIRED=YES; \
+		echo "Using stable local signing identity: $$SIGNING_IDENTITY"; \
+	else \
+		SIGNING_IDENTITY="-"; \
+		SIGNING_REQUIRED=NO; \
+		echo "Using ad-hoc signing (permissions may need approval after rebuilds)"; \
+	fi; \
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
 		-derivedDataPath "$(LOCAL_DERIVED_DATA)" \
 		-xcconfig LocalBuild.xcconfig \
-		CODE_SIGN_IDENTITY="-" \
-		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="$$SIGNING_IDENTITY" \
+		CODE_SIGNING_REQUIRED="$$SIGNING_REQUIRED" \
 		CODE_SIGNING_ALLOWED=YES \
 		DEVELOPMENT_TEAM="" \
 		CODE_SIGN_ENTITLEMENTS="$(CURDIR)/VoiceInk/VoiceInk.local.entitlements" \
@@ -201,6 +220,8 @@ help:
 	@echo "  fix-xcode-path     Update Xcode project to reference the framework (auto-run in setup)"
 	@echo "  setup              Build framework and update Xcode project paths automatically"
 	@echo "  build              Build the VoiceInk Xcode project (Debug)"
+	@echo "  local              Build locally with stable signing when available"
+	@echo "    LOCAL_CODESIGN_IDENTITY=<SHA or name> overrides automatic Apple Development detection"
 	@echo "  release            Build the VoiceInk Xcode project (Release)"
 	@echo "  release-setup      Store notarization credentials in Keychain"
 	@echo "  run                Launch the Debug build"

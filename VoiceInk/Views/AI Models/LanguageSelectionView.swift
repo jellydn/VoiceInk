@@ -27,19 +27,11 @@ struct LanguageSelectionView: View {
         NotificationCenter.default.post(name: .AppSettingsDidChange, object: nil)
     }
 
-    // Function to check if current model is multilingual
-    private func isMultilingualModel() -> Bool {
+    private func hasLanguageChoices() -> Bool {
         guard let currentModel = transcriptionModelManager.currentTranscriptionModel else {
             return false
         }
-        return currentModel.isMultilingualModel
-    }
-
-    private func languageSelectionDisabled() -> Bool {
-        guard let provider = transcriptionModelManager.currentTranscriptionModel?.provider else {
-            return false
-        }
-        return provider == .gemini
+        return currentModel.supportedLanguages.count > 1
     }
 
     private func isNativeAppleModelSelected() -> Bool {
@@ -111,18 +103,7 @@ struct LanguageSelectionView: View {
                 .font(.headline)
 
             if transcriptionModelManager.currentTranscriptionModel != nil {
-                if languageSelectionDisabled() {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Language: Autodetected")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-
-                        Text("The transcription language is automatically detected by the model.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .disabled(true)
-                } else if isMultilingualModel() {
+                if hasLanguageChoices() {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Picker("Select Language", selection: selectedLanguageBinding) {
@@ -145,7 +126,7 @@ struct LanguageSelectionView: View {
                         }
 
                         Text(
-                            "This model supports multiple languages. Select a specific language or auto-detect(if available)"
+                            "Select a supported transcription language or locale. Automatic multilingual transcription is shown when available."
                         )
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -183,15 +164,7 @@ struct LanguageSelectionView: View {
     // New compact view for menu bar
     private var menuItemView: some View {
         Group {
-            if languageSelectionDisabled() {
-                Button {
-                    // Do nothing, just showing info
-                } label: {
-                    Text("Language: Autodetected")
-                        .foregroundColor(.secondary)
-                }
-                .disabled(true)
-            } else if isMultilingualModel() {
+            if hasLanguageChoices() {
                 HStack(spacing: 8) {
                     Menu {
                         ForEach(

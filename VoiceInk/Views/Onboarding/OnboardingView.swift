@@ -165,9 +165,17 @@ struct OnboardingView: View {
                             )
                         },
                         onContinue: {
-                            coordinator.flow.goToLicenseStep(
-                                isTranscriptionSetupReady: isTranscriptionSetupReady
-                            )
+                            #if LOCAL_BUILD
+                                coordinator.flow.completeOnboarding(
+                                    isTranscriptionSetupReady: isTranscriptionSetupReady
+                                ) {
+                                    hasCompletedOnboardingV2 = true
+                                }
+                            #else
+                                coordinator.flow.goToLicenseStep(
+                                    isTranscriptionSetupReady: isTranscriptionSetupReady
+                                )
+                            #endif
                         }
                     )
                     .transition(.opacity)
@@ -233,7 +241,7 @@ struct OnboardingView: View {
         .onDisappear {
             coordinator.permissions.cancelRefreshTask()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+        .onReceive(LifecycleObserver.shared.publisher(for: .applicationDidBecomeActive)) { _ in
             coordinator.permissions.refreshPermissionStatuses()
             coordinator.flow.refreshTranscriptionSetupVerification()
             let refreshedTranscriptionSetupReady = coordinator.isTranscriptionSetupReady(

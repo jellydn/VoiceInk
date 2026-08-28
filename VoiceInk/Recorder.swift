@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import CoreAudio
 import Foundation
 import os
@@ -8,7 +9,7 @@ class Recorder: NSObject, ObservableObject {
     var recorder: CoreAudioRecorder?
     let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Recorder")
     let deviceManager = AudioDeviceManager.shared
-    private var audioDeviceChangedObserver: NSObjectProtocol?
+    private var lifecycleCancellable: AnyCancellable?
     var recordingDeviceChangeObserver: NSObjectProtocol?
     private let mediaController = MediaController.shared
     private let playbackController = PlaybackController.shared
@@ -30,27 +31,20 @@ class Recorder: NSObject, ObservableObject {
 
     enum RecorderError: Error {
         case couldNotStartRecording
-        case noUsableMicrophone(builtInBlockedByClosedLid: Bool)
+        case noUsableMicrophone(internalMicrophoneBlockedByClosedLid: Bool)
     }
 
     override init() {
         super.init()
-        setupAudioDeviceChangedObserver()
-        setupRecordingDeviceChangeObserver()
-        schedulePrepareForCurrentDevice(reason: "init")
-    }
-
-    private func setupAudioDeviceChangedObserver() {
-        audioDeviceChangedObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name("AudioDeviceChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
+        lifecycleCancellable = LifecycleObserver.shared.publisher(
+            for: [.audioDeviceChanged, .systemWillSleep, .systemDidWake]
+        ).sink { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.deviceManager.isRecordingActive else { return }
-                self.schedulePrepareForCurrentDevice(reason: "device-changed")
+                self?.invalidatePreparedAudioUnit()
             }
         }
+        setupRecordingDeviceChangeObserver()
+        schedulePrepareForCurrentDevice(reason: "init")
     }
 
     func startRecording(toOutputFile url: URL) async throws {
@@ -58,7 +52,7 @@ class Recorder: NSObject, ObservableObject {
         guard var deviceID = resolution.deviceID else {
             onAudioChunk = nil
             throw RecorderError.noUsableMicrophone(
-                builtInBlockedByClosedLid: resolution.builtInBlockedByClosedLid
+                internalMicrophoneBlockedByClosedLid: resolution.internalMicrophoneBlockedByClosedLid
             )
         }
 
@@ -79,7 +73,7 @@ class Recorder: NSObject, ObservableObject {
             } catch {
                 let retryResolution = deviceManager.resolveCurrentRecordingDevice(excluding: deviceID)
                 guard deviceManager.isClamshellClosed,
-                    deviceManager.isBuiltInDevice(deviceID),
+                    deviceManager.isInternalMicrophone(deviceID),
                     let fallbackDeviceID = retryResolution.deviceID
                 else {
                     throw error
@@ -174,6 +168,13 @@ class Recorder: NSObject, ObservableObject {
         }
     }
 
+    private func invalidatePreparedAudioUnit() {
+        guard let coreAudioRecorder = recorder else { return }
+        audioSetupQueue.async {
+            coreAudioRecorder.invalidatePreparation()
+        }
+    }
+
     func audioMeterSnapshot() -> AudioMeter {
         guard let recorder else {
             return AudioMeter(averagePower: 0, peakPower: 0)
@@ -231,9 +232,6 @@ class Recorder: NSObject, ObservableObject {
         audioMuteTask?.cancel()
         mediaPauseTask?.cancel()
         audioRestorationTask?.cancel()
-        if let observer = audioDeviceChangedObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
         if let observer = recordingDeviceChangeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
