@@ -6,6 +6,7 @@ LOCAL_DERIVED_DATA := $(CURDIR)/.local-build
 PROJECT_DIR := $(shell pwd)
 PROJECT_FILE := $(PROJECT_DIR)/VoiceInk.xcodeproj/project.pbxproj
 LOCAL_CODESIGN_IDENTITY ?=
+RUN_APP_NAME ?= VoiceInk
 
 .PHONY: all clean whisper setup build local release release-setup check healthcheck help dev dev-hot run run-release fix-xcode-path kill-app
 
@@ -13,6 +14,7 @@ LOCAL_CODESIGN_IDENTITY ?=
 all: check release
 
 # Development workflow
+dev: RUN_APP_NAME = VoiceInk Dev
 dev: build run
 
 # Hot reload development - watches for changes and auto-rebuilds
@@ -118,7 +120,10 @@ setup: whisper fix-xcode-path
 	@echo "✓ Xcode project has been automatically updated to reference the framework."
 
 build: setup
-	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" -skipPackagePluginValidation -skipMacroValidation build
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug CODE_SIGN_IDENTITY="" \
+		-skipPackagePluginValidation \
+		-skipMacroValidation \
+		build
 
 # Build locally with stable Apple Development signing when available.
 local: check setup
@@ -142,7 +147,7 @@ local: check setup
 		SIGNING_REQUIRED=NO; \
 		echo "Using ad-hoc signing (permissions may need approval after rebuilds)"; \
 	fi; \
-	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Debug \
+	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release \
 		-derivedDataPath "$(LOCAL_DERIVED_DATA)" \
 		-xcconfig LocalBuild.xcconfig \
 		CODE_SIGN_IDENTITY="$$SIGNING_IDENTITY" \
@@ -154,7 +159,7 @@ local: check setup
 		-skipPackagePluginValidation \
 		-skipMacroValidation \
 		build
-	@APP_PATH="$(LOCAL_DERIVED_DATA)/Build/Products/Debug/VoiceInk.app" && \
+	@APP_PATH="$(LOCAL_DERIVED_DATA)/Build/Products/Release/VoiceInk.app" && \
 	if [ -d "$$APP_PATH" ]; then \
 		echo "Copying VoiceInk.app to ~/Downloads..."; \
 		rm -rf "$$HOME/Downloads/VoiceInk.app"; \
@@ -176,18 +181,21 @@ local: check setup
 release: setup
 	xcodebuild -project VoiceInk.xcodeproj -scheme VoiceInk -configuration Release CODE_SIGN_IDENTITY="" -skipPackagePluginValidation -skipMacroValidation build
 
-# Run application (Debug configuration by default)
+# Run application
 run:
-	@echo "Looking for VoiceInk.app (Debug build)..."
-	@APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -path "*/Debug/VoiceInk.app" -type d | head -1) && \
-	if [ -n "$$APP_PATH" ]; then \
-		echo "Found Debug app at: $$APP_PATH"; \
-		open "$$APP_PATH"; \
+	@if [ -d "$$HOME/Downloads/$(RUN_APP_NAME).app" ]; then \
+		echo "Opening ~/Downloads/$(RUN_APP_NAME).app..."; \
+		open "$$HOME/Downloads/$(RUN_APP_NAME).app"; \
 	else \
-		echo "Debug VoiceInk.app not found. Please run 'make build' first."; \
-		exit 1; \
-	fi
-		exit 1; \
+		echo "Looking for $(RUN_APP_NAME).app in DerivedData..."; \
+		APP_PATH=$$(find "$$HOME/Library/Developer/Xcode/DerivedData" -name "$(RUN_APP_NAME).app" -type d | head -1) && \
+		if [ -n "$$APP_PATH" ]; then \
+			echo "Found app at: $$APP_PATH"; \
+			open "$$APP_PATH"; \
+		else \
+			echo "$(RUN_APP_NAME).app not found. Build it with 'make local' or use 'make dev' for the development app."; \
+			exit 1; \
+		fi; \
 	fi
 
 # Run application (Release configuration)
