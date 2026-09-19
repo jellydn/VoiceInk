@@ -4,6 +4,32 @@ All notable changes by jellydn to the VoiceInk project are documented in this fi
 
 ## [2026-08] - Sync & Fixes
 
+### Upstream Sync (v2.13 → v2.20)
+Merged Beingpax/VoiceInk@173cbb2b (VoiceInk 2.20). Highlights:
+- Dashboard activity insights + accessibility improvements (#952)
+- Grok Voice Transcribe 2.0 support (#951)
+- French localization (#950)
+- Modifier-only toggle shortcut fix (#945)
+- Locked-session shortcut handling + centralized release handling (#944)
+- Model download performance & cancellation hardening (#943)
+- Dictionary JSON import/export workflows (#937)
+- AI-reviewed Auto Learn for word replacements (#934) — a large feature
+- Preserve AI prompt metadata after enhancement failures (#938)
+- Quick history panel (#930)
+- Mouse shortcuts (#926)
+- Xcode warnings + Swift concurrency/persistence fixes (#925)
+- OpenRouter reliability + qwen 3.8 support (#924)
+- Gemini 3.8 Flash default enhancement model (#920)
+- Major source reorganization by feature/responsibility (#912)
+- Separate debug app identity (VoiceInk Dev, `.dev` bundle id)
+
+Fork merge resolutions:
+- `Makefile`: kept fork dev workflow (`fix-xcode-path`, `dev-hot`, `kill-app`, `run-release`, unsigned `release`); adopted upstream's `RUN_APP_NAME` dev-app handling + `LOCAL_CODESIGN_IDENTITY`.
+- `project.pbxproj`: preserved fork's `LOCAL_BUILD` flag in all four VoiceInk configs; adopted upstream's 2.20 version + `.dev` debug bundle identity + `PRODUCT_MODULE_NAME`.
+- `VoiceInk.swift` (now `App/VoiceInk.swift`): adopted upstream's `#if DEBUG || LOCAL_BUILD` dictionary-CloudKit guard (functionally identical to fork's hardcoded `.none`, since fork always builds with `LOCAL_BUILD`).
+
+All prior fork modifications preserved after merge.
+
 ### Upstream Sync (v2.11 → v2.13)
 Merged Beingpax/VoiceInk@68b871e (VoiceInk 2.13). Highlights:
 - Gemini transcription support (#906)
