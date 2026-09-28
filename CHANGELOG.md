@@ -2,6 +2,27 @@
 
 All notable changes by jellydn to the VoiceInk project are documented in this file.
 
+## [2026-09] - Sync & Fixes
+
+### Upstream Sync (v2.20 → v2.21)
+Merged Beingpax/VoiceInk@6fdf011c (VoiceInk 2.21). Highlights:
+- Unified History and Quick History UI (#982)
+- Insights UI refresh: removed productivity chart, refined design (#981)
+- Parakeet Ultra support
+- Voice activity detection for FluidAudio transcription
+- Playback and mute restoration fixes after recording (#979)
+- Unified dictionary pills + merged replacement rules (#978)
+- Case-only word replacement cycle fix; Comet browser support; local CLI for Auto Learn
+- Custom AI enhancement model IDs (#970)
+- Mode duplication and context menu actions
+- Global Auto Send setting with Return delivery (#969)
+- OpenRouter transcription support (#962)
+- Double-tap recording shortcut mode (#959)
+- Mini recorder window dragging fix (#960)
+- Updated enhancement defaults and AI model selections
+
+Clean merge — no conflicts. All prior fork modifications preserved (LOCAL_BUILD flag, always-licensed LicenseViewModel, local-only dictionary CloudKit).
+
 ## [2026-08] - Sync & Fixes
 
 ### Upstream Sync (v2.13 → v2.20)
