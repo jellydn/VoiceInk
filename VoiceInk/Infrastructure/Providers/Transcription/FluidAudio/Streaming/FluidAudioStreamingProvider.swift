@@ -156,7 +156,7 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             : agreementEngine.confirmedEndTime
         let seekSample = max(0, Int(seekTime * sampleRate))
 
-        guard var audioSlice = bufferLock.withLock({ () -> [Float]? in
+        guard let audioSlice = bufferLock.withLock({ () -> [Float]? in
             let bufferRelativeSeek = max(0, seekSample - trimmedSampleCount)
             let sliceEnd = audioBuffer.count
             guard bufferRelativeSeek < sliceEnd else {
@@ -167,34 +167,57 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             return
         }
 
-        // Pad with 1s trailing silence for punctuation capture
-        let trailingSilenceSamples = 16_000
-        audioSlice += [Float](repeating: 0, count: trailingSilenceSamples)
-
         guard audioSlice.count >= minimumAudioSamples else { return }
 
         do {
-            var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
-            let result = try await asrManager.transcribe(
-                audioSlice,
-                decoderState: &state,
-                language: languageHint
-            )
+            let segments = try await fluidAudioService.detectedSpeechSegments(in: audioSlice)
+                ?? [VadSegment(startTime: 0, endTime: Double(audioSlice.count) / sampleRate)]
+            guard !segments.isEmpty else {
+                lastTranscribedSampleCount = absoluteSampleCount
+                return
+            }
+
+            var words: [TimedWord] = []
+            var textParts: [String] = []
+            var passConfidence: Float = 1.0
+            var hasUntimedText = false
+            for segment in segments {
+                try Task.checkCancellation()
+                let start = max(0, min(segment.startSample(sampleRate: VadManager.sampleRate), audioSlice.count))
+                let end = max(start, min(segment.endSample(sampleRate: VadManager.sampleRate), audioSlice.count))
+                guard start < end else { continue }
+
+                var speechAudio = Array(audioSlice[start..<end])
+                // Decoder padding is synthetic; recorded silence outside speech segments is excluded.
+                speechAudio += [Float](repeating: 0, count: 16_000)
+                var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
+                let result = try await asrManager.transcribe(
+                    speechAudio,
+                    decoderState: &state,
+                    language: languageHint
+                )
+                let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty { textParts.append(text) }
+                passConfidence = min(passConfidence, result.confidence)
+                if let tokenTimings = result.tokenTimings, !tokenTimings.isEmpty {
+                    // VAD removes gaps from ASR input, while agreement uses the recording's timeline.
+                    let timeOffset = Double(seekSample + start) / sampleRate
+                    words += WordAgreementEngine.mergeTokensToWords(tokenTimings, timeOffset: timeOffset)
+                } else if !text.isEmpty {
+                    hasUntimedText = true
+                }
+            }
             lastTranscribedSampleCount = absoluteSampleCount
 
-            guard let tokenTimings = result.tokenTimings, !tokenTimings.isEmpty else {
-                if !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    eventsContinuation?.yield(.partial(text: result.text))
+            guard !words.isEmpty, !hasUntimedText else {
+                if !textParts.isEmpty {
+                    eventsContinuation?.yield(.partial(text: textParts.joined(separator: " ")))
                 }
                 return
             }
 
-            let timeOffset = Double(seekSample) / sampleRate
-            let words = WordAgreementEngine.mergeTokensToWords(tokenTimings, timeOffset: timeOffset)
-            guard !words.isEmpty else { return }
-
             let agreementResult = agreementEngine.processTranscriptionResult(
-                words: words, resultConfidence: result.confidence)
+                words: words, resultConfidence: passConfidence)
 
             if !agreementResult.newlyConfirmedText.isEmpty {
                 let confirmedText = agreementResult.newlyConfirmedText.trimmingCharacters(
@@ -240,7 +263,7 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             : agreementEngine.confirmedEndTime
         let seekSample = max(0, Int(seekTime * sampleRate))
 
-        guard var samples = bufferLock.withLock({ () -> [Float]? in
+        guard let samples = bufferLock.withLock({ () -> [Float]? in
             let bufferRelativeSeek = max(0, seekSample - trimmedSampleCount)
             guard bufferRelativeSeek < audioBuffer.count else {
                 return nil
@@ -250,15 +273,14 @@ final class FluidAudioStreamingProvider: StreamingTranscriptionProvider {
             return nil
         }
 
-        // A short spoken tail still needs enough input for FluidAudio. Padding before
-        // transcription keeps that tail instead of rejecting it for being under 300 ms.
-        let trailingSilenceSamples = 16_000
-        samples += [Float](repeating: 0, count: trailingSilenceSamples)
-
         do {
+            var speechAudio = try await fluidAudioService.preparedSpeechAudio(in: samples)
+            guard !speechAudio.isEmpty else { return nil }
+            // Keep short spoken tails and final punctuation with decoder padding.
+            speechAudio += [Float](repeating: 0, count: 16_000)
             var state = TdtDecoderState.make(decoderLayers: decoderLayerCount)
             let result = try await asrManager.transcribe(
-                samples,
+                speechAudio,
                 decoderState: &state,
                 language: languageHint
             )

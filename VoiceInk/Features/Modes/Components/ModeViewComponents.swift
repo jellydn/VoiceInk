@@ -141,6 +141,8 @@ struct ConfigurationRow: View {
     @EnvironmentObject var enhancementService: AIEnhancementService
     @EnvironmentObject var transcriptionModelManager: TranscriptionModelManager
     @State private var isHovering = false
+    @State private var isShowingDeleteConfirmation = false
+    @State private var deletionCandidate: ModeConfig?
 
     private let maxAppIconsToShow = 5
 
@@ -175,7 +177,10 @@ struct ConfigurationRow: View {
             if langCode == "en" { return String(localized: "English") }
 
             if let modelName = config.selectedTranscriptionModelName,
-                let model = transcriptionModelManager.allAvailableModels.first(where: { $0.name == modelName }),
+                let model = TranscriptionModelRegistry.model(
+                    forSelectionKey: modelName,
+                    in: transcriptionModelManager.allAvailableModels
+                ),
                 let langName = TranscriptionLanguageSupport.languages(
                     for: model, realtimeEnabled: config.isRealtimeTranscriptionEnabled)[langCode]
             {
@@ -205,6 +210,30 @@ struct ConfigurationRow: View {
 
     private var visibleAppConfigs: [AppConfig] {
         return Array(config.allAppConfigs.prefix(maxAppIconsToShow))
+    }
+
+    @ViewBuilder private var modeActions: some View {
+        Button {
+            onEditConfig(config)
+        } label: {
+            Text("Edit")
+        }
+
+        Button {
+            modeManager.duplicateConfiguration(with: config.id)
+        } label: {
+            Text("Duplicate")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            deletionCandidate = config
+            isShowingDeleteConfirmation = true
+        } label: {
+            Text("Delete")
+        }
+        .disabled(config.isDefault)
     }
 
     private var editModeButton: some View {
@@ -394,24 +423,6 @@ struct ConfigurationRow: View {
                     )
                 }
 
-                if config.outputMode == .paste && config.autoSendKey.isEnabled {
-                    HStack(spacing: 4) {
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 10))
-                        Text(config.autoSendKey.displayName)
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule()
-                            .fill(AppTheme.Surface.control)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(AppTheme.Border.control, lineWidth: 0.5)
-                    )
-                }
                 if config.isAIEnhancementEnabled {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
@@ -464,6 +475,33 @@ struct ConfigurationRow: View {
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) {
                 isHovering = hovering
+            }
+        }
+        .contextMenu {
+            modeActions
+        }
+        .confirmationDialog(
+            "Delete Mode?",
+            isPresented: $isShowingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let deletionCandidate {
+                    _ = modeManager.removeConfiguration(with: deletionCandidate.id)
+                }
+                deletionCandidate = nil
+            }
+            Button("Cancel", role: .cancel) {
+                deletionCandidate = nil
+            }
+        } message: {
+            if let deletionCandidate {
+                Text(
+                    String(
+                        format: String(localized: "Are you sure you want to delete '%@'? This action cannot be undone."),
+                        deletionCandidate.name
+                    )
+                )
             }
         }
     }

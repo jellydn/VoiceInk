@@ -192,6 +192,9 @@ enum BackupImporter {
         if let clipboardDelay = general.clipboardRestoreDelay {
             UserDefaults.standard.set(clipboardDelay, forKey: "clipboardRestoreDelay")
         }
+        if let finishAndSendKey = general.finishAndSendKey.flatMap(FinishAndSendKey.init(rawValue:)) {
+            UserDefaults.standard.set(finishAndSendKey.rawValue, forKey: FinishAndSendSettings.key)
+        }
         let importedReviewSchedule = general.autoLearnReviewSchedule.flatMap {
             AutoLearnReviewSchedule(rawValue: $0)
         }
@@ -224,7 +227,7 @@ enum BackupImporter {
     private static func importDictionary(from backup: BackupFile, modelContext: ModelContext) async throws {
         guard backup.vocabularyWords != nil || backup.wordReplacements != nil else {
             print("No new dictionary entries were imported.")
-            DictionaryService.removeExactDuplicateContent(context: modelContext, source: "settings import")
+            DictionaryService.cleanUpDictionaryContent(context: modelContext, source: "settings import")
             return
         }
 
@@ -250,7 +253,7 @@ enum BackupImporter {
             mode: .merge,
             modelContext: modelContext
         )
-        DictionaryService.removeExactDuplicateContent(context: modelContext, source: "settings import")
+        DictionaryService.cleanUpDictionaryContent(context: modelContext, source: "settings import")
         print(
             "Successfully imported \(result.summary.vocabularyToImport) vocabulary entries and "
                 + "\(result.summary.replacementRulesToImport) word replacement rules."

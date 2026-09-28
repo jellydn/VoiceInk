@@ -1,43 +1,45 @@
 import SwiftUI
 
 struct DashboardActivityCalendarCard: View {
-    private static let columnCount = 7
+    private static let daysPerWeek = 7
+    private static let cellSize: CGFloat = 18
+    private static let cellSpacing: CGFloat = 5
     private static let hoverCoordinateSpace = "dashboardActivityCalendar"
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hoveredPoint: DashboardProductivityPoint?
     @State private var hoverLocation: CGPoint?
 
     let points: [DashboardProductivityPoint]
-    let summary: DashboardTimeSavedSummary
+    let selectedPoints: [DashboardProductivityPoint]
     let peakHoursSummary: DashboardPeakHoursSummary
     let isPeakHoursLocked: Bool
 
-    private var visiblePoints: [DashboardProductivityPoint] {
-        points
+    private var bestDayWords: Int {
+        selectedPoints.lazy.map(\.words).max() ?? 0
     }
 
-    private var maximumWords: Int {
-        max(visiblePoints.map(\.words).max() ?? 0, 1)
-    }
-
-    private var averageWordsPerSession: Int {
-        summary.sessionCount > 0 ? summary.wordCount / summary.sessionCount : 0
+    private var activeDayCount: Int {
+        selectedPoints.lazy.filter { $0.words > 0 }.count
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 10) {
                 Text("Consistency, at a glance")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(AppTheme.Text.primary)
 
                 Spacer()
 
                 HStack(spacing: 9) {
                     Text("Less")
-                    legendSwatch(opacity: 0.12)
-                    legendSwatch(opacity: 0.38)
-                    legendSwatch(opacity: 0.76)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(AppTheme.Insights.grid)
+                        .frame(width: 14, height: 14)
+                    legendSwatch(opacity: 0.25)
+                    legendSwatch(opacity: 0.5)
+                    legendSwatch(opacity: 0.85)
                     Text("More")
                 }
                 .font(.system(size: 10, weight: .semibold))
@@ -51,131 +53,117 @@ struct DashboardActivityCalendarCard: View {
                         if let hoveredPoint, let hoverLocation {
                             DashboardActivityCalendarTooltip(point: hoveredPoint)
                                 .position(tooltipPosition(for: hoverLocation, in: geometry.size))
-                                .allowsHitTesting(false)
                                 .transition(.opacity)
                         }
                     }
                     .allowsHitTesting(false)
                 }
                 .coordinateSpace(name: Self.hoverCoordinateSpace)
-                .animation(.easeOut(duration: 0.12), value: hoveredPoint?.id)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hoveredPoint?.id)
 
             Divider()
 
             HStack(alignment: .top, spacing: 30) {
-                metric(label: "Sessions", value: summary.hasData ? Formatters.formattedCompactNumber(summary.sessionCount) : "--", emphasized: true)
-                metric(label: "Average output", value: summary.hasData ? "\(Formatters.formattedCompactNumber(averageWordsPerSession)) words" : "--")
+                metric(label: "Active days", value: Formatters.formattedCompactNumber(activeDayCount))
+                metric(label: "Best day", value: activeDayCount > 0 ? "\(Formatters.formattedCompactNumber(bestDayWords)) words" : "--")
                 metric(label: "Best time", value: peakWindowText)
             }
         }
-        .padding(22)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(DashboardInsightCardBackground(cornerRadius: 16))
+        .dashboardInsightCardStyle(alignment: .topLeading)
         .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
     private var activityGrid: some View {
-        if visiblePoints.isEmpty {
-            LazyVGrid(columns: gridColumns, spacing: 7) {
-                ForEach(0..<21, id: \.self) { _ in
-                    emptyActivityCell
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("No activity recorded for this period")
-        } else if visiblePoints.count <= 35 {
-            LazyVGrid(columns: gridColumns, spacing: 9) {
-                ForEach(calendarCells) { cell in
-                    if let point = cell.point {
-                        activityCell(point: point)
+        GeometryReader { geometry in
+            let gridWidth = max(Self.cellSize, geometry.size.width)
+            let visibleWeekCount = max(
+                1,
+                Int((gridWidth + Self.cellSpacing) / (Self.cellSize + Self.cellSpacing))
+            )
+            let columnSpacing = visibleWeekCount > 1
+                ? (gridWidth - CGFloat(visibleWeekCount) * Self.cellSize) / CGFloat(visibleWeekCount - 1)
+                : Self.cellSpacing
+            let cells = calendarCells(weekCount: visibleWeekCount)
+            let maximumWords = max(cells.lazy.filter { !$0.isFuture }.map { $0.point.words }.max() ?? 0, 1)
+
+            LazyHGrid(rows: calendarRows, spacing: columnSpacing) {
+                ForEach(cells) { cell in
+                    if cell.isFuture {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppTheme.Insights.grid.opacity(0.45))
+                            .frame(width: Self.cellSize, height: Self.cellSize)
+                            .accessibilityLabel("\(cell.point.accessibilityLabel), future date")
                     } else {
-                        Color.clear
-                            .aspectRatio(1, contentMode: .fit)
-                            .accessibilityHidden(true)
+                        compactActivityCell(point: cell.point, maximumWords: maximumWords)
                     }
                 }
             }
-        } else {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    LazyHGrid(rows: calendarRows, spacing: 5) {
-                        ForEach(calendarCells) { cell in
-                            Group {
-                                if let point = cell.point {
-                                    compactActivityCell(point: point)
-                                } else {
-                                    Color.clear
-                                        .frame(width: 14, height: 14)
-                                        .accessibilityHidden(true)
-                                }
-                            }
-                            .id(cell.id)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                .scrollIndicators(.visible)
-                .onAppear {
-                    scrollToLatest(using: proxy)
-                }
-                .onChange(of: latestCalendarCellID) { _, _ in
-                    scrollToLatest(using: proxy)
-                }
+            .frame(width: gridWidth, alignment: .leading)
+            .padding(.vertical, 2)
+            .onChange(of: cells.first?.id) { _, _ in
+                clearHover()
+            }
+            .onChange(of: geometry.size.width) { _, _ in
+                clearHover()
             }
         }
-    }
-
-    private var gridColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 7), count: Self.columnCount)
+        .frame(height: CGFloat(Self.daysPerWeek) * Self.cellSize + CGFloat(Self.daysPerWeek - 1) * Self.cellSpacing + 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(points.contains { $0.words > 0 }
+            ? Text("Recent daily dictation activity")
+            : Text("No activity recorded"))
+        .help("Recent activity from your full history. Empty cells indicate days without recorded activity.")
     }
 
     private var calendarRows: [GridItem] {
-        Array(repeating: GridItem(.fixed(14), spacing: 5), count: Self.columnCount)
+        Array(repeating: GridItem(.fixed(Self.cellSize), spacing: Self.cellSpacing), count: Self.daysPerWeek)
     }
 
-    private var calendarCells: [DashboardCalendarCell] {
-        guard let firstPoint = visiblePoints.first else { return [] }
+    private func calendarCells(weekCount: Int) -> [DashboardCalendarCell] {
         let calendar = DashboardPeriodWindows.dashboardCalendar()
-        let weekday = calendar.component(.weekday, from: firstPoint.date)
-        let leadingEmptyCount = (weekday - calendar.firstWeekday + 7) % 7
-        let emptyCells = (0..<leadingEmptyCount).map { DashboardCalendarCell(id: "empty-\($0)", point: nil) }
-        let activityCells = visiblePoints.map { DashboardCalendarCell(id: "day-\($0.date.timeIntervalSinceReferenceDate)", point: $0) }
-        return emptyCells + activityCells
-    }
+        let today = calendar.startOfDay(for: Date())
+        let currentWeekStart = startOfWeek(containing: today, calendar: calendar)
+        let firstWeek = calendar.date(
+            byAdding: .weekOfYear,
+            value: -(weekCount - 1),
+            to: currentWeekStart
+        ) ?? currentWeekStart
+        let dayCount = weekCount * Self.daysPerWeek
+        let pointsByDay = points.reduce(into: [Date: DashboardProductivityPoint]()) { result, point in
+            result[calendar.startOfDay(for: point.date)] = point
+        }
+        let dateFormatter = DateFormatter()
+        dateFormatter.calendar = calendar
+        dateFormatter.locale = .current
+        dateFormatter.dateStyle = .full
 
-    private var latestCalendarCellID: String? {
-        calendarCells.last?.id
-    }
-
-    private func scrollToLatest(using proxy: ScrollViewProxy) {
-        guard let latestCalendarCellID else { return }
-        DispatchQueue.main.async {
-            proxy.scrollTo(latestCalendarCellID, anchor: .trailing)
+        return (0..<dayCount).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: firstWeek) else {
+                return nil
+            }
+            let day = calendar.startOfDay(for: date)
+            let dateLabel = dateFormatter.string(from: day)
+            let point = pointsByDay[day] ?? DashboardProductivityPoint(
+                date: day,
+                label: dateLabel,
+                accessibilityLabel: dateLabel,
+                words: 0
+            )
+            return DashboardCalendarCell(point: point, isFuture: day > today)
         }
     }
 
-    private func activityCell(point: DashboardProductivityPoint) -> some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(activityColor(words: point.words))
-            .aspectRatio(1, contentMode: .fit)
-            .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay { hoverTrackingLayer(for: point) }
-            .accessibilityLabel("\(point.accessibilityLabel), \(point.words) words")
+    private func startOfWeek(containing date: Date, calendar: Calendar) -> Date {
+        let day = calendar.startOfDay(for: date)
+        let offset = (calendar.component(.weekday, from: day) - calendar.firstWeekday + Self.daysPerWeek) % Self.daysPerWeek
+        return calendar.date(byAdding: .day, value: -offset, to: day) ?? day
     }
 
-    private var emptyActivityCell: some View {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(activityColor(words: 0))
-            .aspectRatio(1, contentMode: .fit)
-            .accessibilityHidden(true)
-    }
-
-    private func compactActivityCell(point: DashboardProductivityPoint) -> some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(activityColor(words: point.words))
-            .frame(width: 14, height: 14)
-            .contentShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    private func compactActivityCell(point: DashboardProductivityPoint, maximumWords: Int) -> some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(activityColor(words: point.words, maximumWords: maximumWords))
+            .frame(width: Self.cellSize, height: Self.cellSize)
+            .contentShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .overlay { hoverTrackingLayer(for: point) }
             .accessibilityLabel("\(point.accessibilityLabel), \(point.words) words")
     }
@@ -195,8 +183,7 @@ struct DashboardActivityCalendarCard: View {
                         )
                     case .ended:
                         if hoveredPoint?.id == point.id {
-                            hoveredPoint = nil
-                            hoverLocation = nil
+                            clearHover()
                         }
                     }
                 }
@@ -221,27 +208,33 @@ struct DashboardActivityCalendarCard: View {
         )
     }
 
-    private func activityColor(words: Int) -> Color {
-        guard words > 0 else { return AppTheme.Surface.subtle }
+    private func clearHover() {
+        hoveredPoint = nil
+        hoverLocation = nil
+    }
+
+    private func activityColor(words: Int, maximumWords: Int) -> Color {
+        guard words > 0 else { return AppTheme.Insights.grid }
         let ratio = min(CGFloat(words) / CGFloat(maximumWords), 1)
-        return AppTheme.Accent.primary.opacity(0.18 + (ratio * 0.62))
+        return AppTheme.Insights.activity.opacity(0.25 + (ratio * 0.60))
     }
 
     private func legendSwatch(opacity: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(AppTheme.Accent.primary.opacity(opacity))
+            .fill(AppTheme.Insights.activity.opacity(opacity))
             .frame(width: 14, height: 14)
     }
 
-    private func metric(label: LocalizedStringKey, value: String, emphasized: Bool = false) -> some View {
+    private func metric(label: LocalizedStringKey, value: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AppTheme.Text.secondary)
 
             Text(value)
-                .font(.system(size: emphasized ? 28 : 18, weight: .bold, design: .rounded))
-                .foregroundStyle(emphasized ? AppTheme.Accent.strong : AppTheme.Text.primary)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppTheme.Text.primary)
+                .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }
@@ -249,23 +242,28 @@ struct DashboardActivityCalendarCard: View {
     }
 
     private var peakWindowText: String {
-        guard !isPeakHoursLocked, peakHoursSummary.hasData else {
-            return "Not enough data"
+        guard !isPeakHoursLocked else {
+            return String(localized: "Locked")
+        }
+        guard peakHoursSummary.hasData else {
+            return String(localized: "Not enough data")
         }
 
         return "\(formattedHour(peakHoursSummary.startHour))–\(formattedHour(peakHoursSummary.endHour))"
     }
 
     private func formattedHour(_ hour: Int) -> String {
+        let calendar = DashboardPeriodWindows.dashboardCalendar()
         let normalized = ((hour % 24) + 24) % 24
-        let displayHour = normalized % 12 == 0 ? 12 : normalized % 12
-        return "\(displayHour) \(normalized < 12 ? "AM" : "PM")"
+        let date = calendar.date(bySettingHour: normalized, minute: 0, second: 0, of: Date()) ?? Date()
+        return Formatters.localizedHourFormatter(calendar: calendar).string(from: date)
     }
 }
 
 private struct DashboardCalendarCell: Identifiable {
-    let id: String
-    let point: DashboardProductivityPoint?
+    var id: Date { point.date }
+    let point: DashboardProductivityPoint
+    let isFuture: Bool
 }
 
 private struct DashboardActivityCalendarTooltip: View {
@@ -286,7 +284,7 @@ private struct DashboardActivityCalendarTooltip: View {
         .padding(.vertical, 8)
         .frame(minWidth: 150, alignment: .leading)
         .background(
-            Color(nsColor: .controlBackgroundColor),
+            AppTheme.Insights.elevated,
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
         .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)

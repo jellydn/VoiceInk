@@ -79,7 +79,13 @@ struct DashboardContent: View {
             let contentWidth = DashboardLayout.contentWidth(for: geometry.size.width)
 
             ZStack(alignment: .top) {
-                DashboardAmbientBackground()
+                if isInsightsViewPresented && canViewInsights {
+                    AppTheme.Insights.page
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                } else {
+                    DashboardAmbientBackground()
+                }
 
                 ScrollView {
                     Group {
@@ -291,10 +297,6 @@ struct DashboardContent: View {
         return text.range(of: "Transcription Failed:", options: [.caseInsensitive, .anchored]) == nil
     }
 
-    private var selectedProductivityPoints: [DashboardProductivityPoint] {
-        statsSummary.productivity(for: selectedInsightPeriod)
-    }
-
     private var selectedDailyActivityPoints: [DashboardProductivityPoint] {
         statsSummary.dailyActivity(for: selectedInsightPeriod)
     }
@@ -321,15 +323,6 @@ struct DashboardContent: View {
             wordCount: selectedTotals.words,
             sessionCount: selectedTotals.count
         )
-    }
-
-    private var statsUpdatedAtText: String {
-        guard let statsSnapshotGeneratedAt else {
-            return String(localized: "Stats not updated yet")
-        }
-
-        let formattedDate = statsSnapshotGeneratedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
-        return String(format: String(localized: "Updated at %@"), formattedDate)
     }
 
     private var canViewInsights: Bool {
@@ -491,11 +484,6 @@ struct DashboardContent: View {
     }
 
     @MainActor
-    private func refreshDashboardStats() {
-        scheduleDashboardStatsRefresh(allowSkipWhenFresh: false)
-    }
-
-    @MainActor
     private func scheduleDashboardStatsRefresh(
         debounce: Bool = false,
         allowSkipWhenFresh: Bool = false
@@ -625,17 +613,14 @@ struct DashboardContent: View {
     private var dashboardInsightsView: some View {
         DashboardInsightsView(
             selectedPeriod: $selectedInsightPeriod,
-            productivityPoints: selectedProductivityPoints,
             dailyActivityPoints: selectedDailyActivityPoints,
+            allTimeDailyActivityPoints: statsSummary.allTimeDailyActivity,
             peakHoursSummary: selectedPeakHours,
             isPeakHoursLocked: shouldLockPeakHours,
             timeSavedSummary: selectedTimeSavedSummary,
             modelUsage: selectedModelUsage,
             modelPerformanceSummaries: selectedModelPerformance,
-            updatedAtText: statsUpdatedAtText,
-            isRefreshingStats: isDashboardStatsRefreshing,
             onBack: { isInsightsViewPresented = false },
-            onRefreshStats: refreshDashboardStats,
             onViewModelUsage: openModelUsagePanel,
             onViewModelPerformance: openModelPerformancePanel
         )
