@@ -5,10 +5,13 @@ import os
 @MainActor
 protocol TranscriptionSession: AnyObject {
     /// Prepares the session. Returns an audio chunk callback for streaming, or nil for file-based.
-    func prepare(configuration: TranscriptionRuntimeConfiguration) async throws -> ((Data) -> Void)?
+    func prepare(
+        configuration: TranscriptionRuntimeConfiguration,
+        vocabulary: RecordingVocabulary
+    ) async throws -> ((Data) -> Void)?
 
     /// Called after recording stops. Returns the final transcribed text.
-    func transcribe(audioURL: URL) async throws -> String
+    func transcribe(audioURL: URL, vocabulary: RecordingVocabulary) async throws -> String
 
     /// Cancel the session and clean up resources.
     func cancel()
@@ -27,17 +30,22 @@ final class FileTranscriptionSession: TranscriptionSession {
         self.service = service
     }
 
-    func prepare(configuration: TranscriptionRuntimeConfiguration) async throws -> ((Data) -> Void)? {
+    func prepare(
+        configuration: TranscriptionRuntimeConfiguration,
+        vocabulary: RecordingVocabulary
+    ) async throws -> ((Data) -> Void)? {
         self.model = configuration.model
-        self.context = configuration.requestContext.scoped(to: configuration.model)
+        self.context = configuration.requestContext.withVocabulary(vocabulary).scoped(to: configuration.model)
         return nil
     }
 
-    func transcribe(audioURL: URL) async throws -> String {
+    func transcribe(audioURL: URL, vocabulary: RecordingVocabulary) async throws -> String {
         guard let model = model else {
             throw VoiceInkEngineError.transcriptionFailed
         }
-        return try await service.transcribe(audioURL: audioURL, model: model, context: context)
+        return try await service.transcribe(
+            audioURL: audioURL, model: model, context: context.withVocabulary(vocabulary)
+        )
     }
 
     func cancel() {
@@ -55,6 +63,7 @@ final class StreamingTranscriptionSession: TranscriptionSession {
     private var model: (any TranscriptionModel)?
     private var context: TranscriptionRequestContext = .currentDefaults
     private var streamingFailed = false
+    private var isCancelled = false
     private var startupTask: Task<Void, Never>?
     private var startupTaskID: UUID?
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "StreamingTranscriptionSession")
@@ -64,21 +73,24 @@ final class StreamingTranscriptionSession: TranscriptionSession {
         self.fallbackService = fallbackService
     }
 
-    func prepare(configuration: TranscriptionRuntimeConfiguration) async throws -> ((Data) -> Void)? {
+    func prepare(
+        configuration: TranscriptionRuntimeConfiguration,
+        vocabulary: RecordingVocabulary
+    ) async throws -> ((Data) -> Void)? {
         let model = configuration.model
-        let context = configuration.requestContext.scoped(to: model)
+        let context = configuration.requestContext.withVocabulary(vocabulary).scoped(to: model)
 
         self.model = model
         self.context = context
         logger.notice("Streaming session prepare model=\(model.displayName, privacy: .public)")
 
-        // Return callback immediately; WebSocket connects in background
+        // Start the provider in the background.
         let service = streamingService
         let callback: (Data) -> Void = { [weak service] data in
             service?.sendAudioChunk(data)
         }
 
-        startupTask?.cancel()
+        cancelStartup()
         let taskID = UUID()
         startupTaskID = taskID
         startupTask = Task { [weak self] in
@@ -114,9 +126,23 @@ final class StreamingTranscriptionSession: TranscriptionSession {
         return callback
     }
 
-    func transcribe(audioURL: URL) async throws -> String {
+    func transcribe(audioURL: URL, vocabulary: RecordingVocabulary) async throws -> String {
         guard let model = model else {
             throw VoiceInkEngineError.transcriptionFailed
+        }
+
+        // Optional vocabulary never delays startup or finalization. Providers with a
+        // batch endpoint can immediately fall back if the connection is not ready.
+        let isUnified = model.provider == .fluidAudio
+            && FluidAudioModelManager.isParakeetUnifiedModel(named: model.name)
+        let requiresStreaming = CloudProviderRegistry.provider(for: model.provider)?.isStreamingOnly == true
+        if isUnified || requiresStreaming {
+            // These paths need their normal model/connection startup to produce any result.
+            await startupTask?.value
+        }
+        try checkCancellation()
+        if !isUnified, !requiresStreaming, !streamingService.isActive {
+            streamingFailed = true
         }
 
         if !streamingFailed {
@@ -124,6 +150,7 @@ final class StreamingTranscriptionSession: TranscriptionSession {
                 let start = Date()
                 logger.notice("Streaming stop/transcribe started model=\(model.displayName, privacy: .public)")
                 let result = try await streamingService.stopAndFinalize()
+                try checkCancellation()
                 switch result {
                 case .finalized(let text):
                     logger.notice(
@@ -134,34 +161,47 @@ final class StreamingTranscriptionSession: TranscriptionSession {
                     logger.notice("Streaming provider requested full batch transcription")
                 }
             } catch {
+                if isCancelled || Task.isCancelled || error is CancellationError {
+                    throw CancellationError()
+                }
                 logger.error("❌ Streaming failed, falling back to batch: \(error, privacy: .public)")
-                startupTask?.cancel()
-                startupTask = nil
-                startupTaskID = nil
-                streamingService.cancel()
             }
-        } else {
-            startupTask?.cancel()
-            startupTask = nil
-            startupTaskID = nil
-            streamingService.cancel()
         }
+
+        stopStreaming()
+        try checkCancellation()
 
         let fallbackStart = Date()
         logger.notice(
             "Using batch fallback for \(model.displayName, privacy: .public) file=\(audioURL.lastPathComponent, privacy: .public)"
         )
-        let text = try await fallbackService.transcribe(audioURL: audioURL, model: model, context: context)
+        let text = try await fallbackService.transcribe(
+            audioURL: audioURL, model: model, context: context.withVocabulary(vocabulary)
+        )
         logger.notice(
             "Batch fallback completed elapsed=\(Date().timeIntervalSince(fallbackStart), format: .fixed(precision: 3), privacy: .public)s chars=\(text.count, privacy: .public)"
         )
         return text
     }
 
+    private func checkCancellation() throws {
+        try Task.checkCancellation()
+        guard !isCancelled else { throw CancellationError() }
+    }
+
     func cancel() {
+        isCancelled = true
+        stopStreaming()
+    }
+
+    private func stopStreaming() {
+        cancelStartup()
+        streamingService.cancel()
+    }
+
+    private func cancelStartup() {
         startupTask?.cancel()
         startupTask = nil
         startupTaskID = nil
-        streamingService.cancel()
     }
 }

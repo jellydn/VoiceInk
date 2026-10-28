@@ -8,6 +8,7 @@ final class ModelPrewarmService: ObservableObject {
     private let transcriptionModelManager: TranscriptionModelManager
     private let whisperModelManager: WhisperModelManager
     private let modelContext: ModelContext
+    private let fluidAudioService: FluidAudioTranscriptionService
     private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "ModelPrewarm")
     private lazy var serviceRegistry = TranscriptionServiceRegistry(
         modelProvider: whisperModelManager,
@@ -20,11 +21,12 @@ final class ModelPrewarmService: ObservableObject {
 
     init(
         transcriptionModelManager: TranscriptionModelManager, whisperModelManager: WhisperModelManager,
-        modelContext: ModelContext
+        modelContext: ModelContext, fluidAudioService: FluidAudioTranscriptionService
     ) {
         self.transcriptionModelManager = transcriptionModelManager
         self.whisperModelManager = whisperModelManager
         self.modelContext = modelContext
+        self.fluidAudioService = fluidAudioService
         lifecycleCancellable = LifecycleObserver.shared.publisher(for: .systemDidWake).sink {
             [weak self] _ in
             Task { @MainActor in
@@ -45,9 +47,9 @@ final class ModelPrewarmService: ObservableObject {
         }
     }
 
-    /// Trigger on wake from sleep or screen unlock
+    /// Trigger on wake from sleep
     private func schedulePrewarm() {
-        logger.notice("Mac activity detected (wake/unlock), scheduling prewarm")
+        logger.notice("Mac woke from sleep, scheduling prewarm")
         Task {
             try? await Task.sleep(for: .seconds(3))
             await performPrewarm()
@@ -58,11 +60,6 @@ final class ModelPrewarmService: ObservableObject {
 
     private func performPrewarm() async {
         guard shouldPrewarm() else { return }
-
-        guard let audioURL = prewarmAudioURL else {
-            logger.error("❌ Prewarm audio file (sound7.wav) not found")
-            return
-        }
 
         guard
             let transcriptionConfiguration = ModeRuntimeResolver.transcriptionConfiguration(
@@ -78,11 +75,23 @@ final class ModelPrewarmService: ObservableObject {
         let startTime = Date()
 
         do {
-            let _ = try await serviceRegistry.transcribe(
-                audioURL: audioURL,
-                model: currentModel,
-                context: transcriptionConfiguration.requestContext
-            )
+            if currentModel.provider == .fluidAudio,
+                FluidAudioModelManager.isParakeetUnifiedModel(named: currentModel.name)
+            {
+                try await fluidAudioService.prewarmUnifiedModel(
+                    isRealtime: transcriptionConfiguration.isRealtimeEnabled
+                )
+            } else {
+                guard let audioURL = prewarmAudioURL else {
+                    logger.error("❌ Prewarm audio file (sound7.wav) not found")
+                    return
+                }
+                let _ = try await serviceRegistry.transcribe(
+                    audioURL: audioURL,
+                    model: currentModel,
+                    context: transcriptionConfiguration.requestContext
+                )
+            }
             let duration = Date().timeIntervalSince(startTime)
 
             logger.notice("Prewarm completed in \(String(format: "%.2f", duration), privacy: .public)s")

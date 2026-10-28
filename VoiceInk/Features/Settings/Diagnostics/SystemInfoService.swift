@@ -56,6 +56,7 @@ final class SystemInfoService {
             Restore Clipboard After Paste: \(UserDefaults.standard.bool(forKey: "restoreClipboardAfterPaste"))
             Clipboard Restore Delay: \(UserDefaults.standard.double(forKey: "clipboardRestoreDelay"))s
             Paste Method: \(PasteMethod.current().displayName)
+            Smart Punctuation: \(UserDefaults.standard.bool(forKey: SmartPunctuation.settingsKey))
 
             DATA CLEANUP SETTINGS:
             Auto-Delete Transcriptions: \(UserDefaults.standard.bool(forKey: CleanupSettingsKeys.isTranscriptionCleanupEnabled))
@@ -155,7 +156,18 @@ final class SystemInfoService {
     }
 
     private func shortcutDescription(for action: ShortcutAction) -> String {
-        ShortcutStore.shortcut(for: action)?.displayString ?? ""
+        let modeKey = action == .primaryRecording ? "primaryRecordingShortcutMode" : "secondaryRecordingShortcutMode"
+        let mode = UserDefaults.standard.string(forKey: modeKey)
+            .flatMap(RecordingShortcutManager.Mode.init(rawValue:)) ?? .hybrid
+        let modeName: String
+        switch mode {
+        case .toggle: modeName = "Toggle"
+        case .pushToTalk: modeName = "Push to Talk"
+        case .hybrid: modeName = "Hybrid"
+        case .doubleTap: modeName = "Double Tap"
+        }
+        let shortcut = ShortcutStore.shortcut(for: action)?.displayString ?? "Not configured"
+        return "\(shortcut) [\(modeName)]"
     }
 
     private func getModeConfigurationInfo(for mode: ModeConfig?) -> String {

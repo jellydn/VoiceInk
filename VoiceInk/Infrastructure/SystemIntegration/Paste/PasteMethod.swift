@@ -3,11 +3,21 @@ import Foundation
 enum PasteMethod: String, CaseIterable, Identifiable {
     case standard = "default"
     case appleScript = "appleScript"
+    case directTyping = "directTyping"
 
     static let userDefaultsKey = "pasteMethod"
     static let legacyAppleScriptPasteKey = "useAppleScriptPaste"
 
     var id: String { rawValue }
+
+    var usesClipboard: Bool {
+        switch self {
+        case .standard, .appleScript:
+            return true
+        case .directTyping:
+            return false
+        }
+    }
 
     var displayName: String {
         switch self {
@@ -15,6 +25,8 @@ enum PasteMethod: String, CaseIterable, Identifiable {
             return String(localized: "Default")
         case .appleScript:
             return String(localized: "AppleScript")
+        case .directTyping:
+            return String(localized: "Direct Typing")
         }
     }
 

@@ -572,7 +572,7 @@ struct ModeConfigFormView: View {
             Toggle(isOn: $draft.useScreenCapture) {
                 HStack(spacing: 4) {
                     Text("Screen")
-                    InfoTip("Use captured on-screen text as context for this mode.")
+                    InfoTip("Use text recognized from the active window as context for this mode.")
                 }
             }
         }
@@ -620,6 +620,21 @@ struct ModeConfigFormView: View {
                     HStack(spacing: 6) {
                         Text("Set as default")
                         InfoTip("Default mode is used when no specific app or website matches are found.")
+                    }
+                }
+            }
+
+            if draft.outputMode == .paste {
+                Picker(selection: $draft.autoSendKey) {
+                    ForEach(FinishAndSendKey.allCases, id: \.self) { key in
+                        Text(key.displayName).tag(key)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Auto Send")
+                        InfoTip(
+                            "Automatically presses a key combination after pasting text. Useful for chat applications or forms that use different send shortcuts."
+                        )
                     }
                 }
             }
