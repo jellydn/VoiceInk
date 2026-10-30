@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_step() {
+  printf '\n==> %s\n' "$1"
+}
+
+require_command() {
+  local command_name="$1"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    printf 'Missing required command: %s\n' "$command_name" >&2
+    exit 1
+  fi
+}
+
+log_step "Checking macOS build prerequisites"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  printf 'VoiceInk builds require a macOS satellite; skipping macOS-only preparation on %s.\n' "$(uname -s)"
+  exit 0
+fi
+
+require_command git
+require_command make
+require_command xcodebuild
+require_command swift
+require_command cmake
+require_command python3
+
+log_step "Preparing whisper.cpp framework"
+make whisper
+
+log_step "Updating the local framework path"
+make fix-xcode-path
+
+log_step "Resolving Swift package dependencies"
+xcodebuild \
+  -resolvePackageDependencies \
+  -project VoiceInk.xcodeproj \
+  -scheme VoiceInk \
+  -skipPackagePluginValidation \
+  -skipMacroValidation
+
+log_step "VoiceInk orb setup complete"

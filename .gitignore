@@ -35,6 +35,7 @@ build/
 .local-build/
 .review-build/
 .local-dependencies/
+.amp/portals/
 
 # CocoaPods
 #
